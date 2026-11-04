@@ -5,10 +5,10 @@ import {VideoInspectionError} from '../domain/video.ts'
 export function createTranscriptSession(readVideoId: () => string | null, source: TranscriptSource) {
   let revision = 0
   let cachedVideoId: string | null = null
-  const cache = new Map<string, Transcript>()
+  const cache = new Map<string | null, Transcript>()
   let pending: {
     videoId: string
-    trackId: string
+    trackId: string | null
     requestId: string
     controller: AbortController
     promise: Promise<Transcript>
@@ -21,7 +21,7 @@ export function createTranscriptSession(readVideoId: () => string | null, source
     pending = null
   }
 
-  async function load(videoId: string, trackId: string, requestId: string): Promise<Transcript> {
+  async function load(videoId: string, trackId: string | null, requestId: string): Promise<Transcript> {
     if (readVideoId() !== videoId) throw new VideoInspectionError('video-changed')
     if (cachedVideoId !== videoId) {
       cancel()

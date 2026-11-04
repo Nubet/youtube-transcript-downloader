@@ -11,7 +11,8 @@ export default function ExportControls({inspection, selection, settings, setting
   settingsLoading: boolean
 }) {
   const file = popupStore.getExport(settings.format === 'txt'
-    ? {format: 'txt', includeTimestamps: settings.includeTimestamps} : {format: settings.format})
+    ? {format: 'txt', includeTimestamps: settings.includeTimestamps, includeTitle: settings.includeTitle, includeLink: settings.includeLink}
+    : {format: settings.format})
   const exportState: ExportState = selection.status === 'ready' ? selection.exportState : {status: 'idle'}
   const current = exportState.status !== 'idle' && exportState.file === file ? exportState : null
   const busy = exportState.status === 'working'
@@ -21,26 +22,11 @@ export default function ExportControls({inspection, selection, settings, setting
   return (
     <section className="export-controls" aria-label="Export transcript" aria-busy={busy}>
       <div className="settings-group">
-        <label className="setting-row language-field">
-          <span>Language</span>
-          <select value={selection.status === 'none' ? '' : selection.trackId}
-            onChange={(event) => {
-              const track = inspection.tracks.find((item) => item.id === event.target.value)
-              if (!track) return
-              void settingsStore.update({preferredLanguage: track.languageCode})
-              void popupStore.selectLanguage(track.id)
-            }}>
-            {inspection.tracks.map((track) => (
-              <option key={track.id} value={track.id}>
-                {track.label}{track.kind === 'auto' ? ' (auto)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+        <LanguageField tracks={inspection.tracks} selection={selection} />
         <FormatOptions settings={settings} disabled={optionsDisabled} />
       </div>
       <TranscriptStatus selection={selection} />
-      {file?.timing === 'estimated' && <p className="status-message">Estimated subtitle timing.</p>}
+      {file?.timing === 'estimated' && <p className="status-message">YouTube panel · language unspecified · estimated timing.</p>}
       <div className="export-actions">
         <button type="button" className="download-button" disabled={actionsDisabled}
           onClick={() => { if (file) void popupStore.exportTranscript('download', file) }}>
@@ -53,6 +39,28 @@ export default function ExportControls({inspection, selection, settings, setting
       </div>
       <ExportFeedback state={current} />
     </section>
+  )
+}
+
+function LanguageField({tracks, selection}: {tracks: VideoInspection['tracks']; selection: TranscriptSelection}) {
+  return (
+    <label className="setting-row language-field">
+      <span>Language</span>
+      <select value={selection.status === 'none' ? '' : selection.trackId ?? 'panel'}
+        onChange={(event) => {
+          if (event.target.value === 'panel') { void popupStore.selectLanguage(null); return }
+          const track = tracks.find((item) => item.id === event.target.value)
+          if (!track) return
+          void popupStore.selectLanguage(track.id)
+        }}>
+        {selection.status !== 'none' && selection.trackId === null && <option value="panel">YouTube transcript</option>}
+        {tracks.map((track) => (
+          <option key={track.id} value={track.id}>
+            {track.label}{track.kind === 'auto' ? ' (auto)' : ''}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
 

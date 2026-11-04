@@ -1,6 +1,10 @@
 import {VideoInspectionError} from '../../domain/video.ts'
 
-export async function fetchYouTubeText(url: string | URL, signal: AbortSignal): Promise<string> {
+export async function fetchYouTubeText(
+  url: string | URL,
+  signal: AbortSignal,
+  options: Pick<RequestInit, 'method' | 'headers' | 'body'> = {}
+): Promise<string> {
   const controller = new AbortController()
   const abort = () => controller.abort()
   signal.addEventListener('abort', abort, {once: true})
@@ -14,6 +18,7 @@ export async function fetchYouTubeText(url: string | URL, signal: AbortSignal): 
   try {
     if (signal.aborted) throw new VideoInspectionError('cancelled')
     const response = await fetch(url, {
+      ...options,
       credentials: 'include', redirect: 'error', signal: controller.signal,
     })
     if (!response.ok) throw new VideoInspectionError('network', response.status)

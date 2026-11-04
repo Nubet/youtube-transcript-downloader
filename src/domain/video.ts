@@ -30,6 +30,9 @@ export type VideoErrorCode =
   | 'empty-transcript'
   | 'invalid-transcript'
   | 'track-unavailable'
+  | 'panel-unavailable'
+  | 'panel-incomplete'
+  | 'panel-filtered'
   | 'cancelled'
 
 export class VideoInspectionError extends Error {

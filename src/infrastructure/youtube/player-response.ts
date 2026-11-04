@@ -12,7 +12,10 @@ export type PlayerPage = {
 }
 
 export function parsePlayerPage(html: string, expectedVideoId: string): PlayerPage {
-  const data = extractPlayerResponse(html)
+  return parsePlayerResponse(extractPlayerResponse(html), expectedVideoId)
+}
+
+export function parsePlayerResponse(data: unknown, expectedVideoId: string): PlayerPage {
   if (!isRecord(data) || !isRecord(data.playabilityStatus)) {
     throw new VideoInspectionError('page-data')
   }

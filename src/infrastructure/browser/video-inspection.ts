@@ -48,11 +48,13 @@ export async function inspectActiveVideo(refresh = false): Promise<VideoInspecti
   return activeInspection
 }
 
-export async function loadActiveTranscript(videoId: string, trackId: string, signal: AbortSignal): Promise<Transcript> {
+export async function loadActiveTranscript(videoId: string, trackId: string | null, signal: AbortSignal): Promise<Transcript> {
   const tabId = activeTabId
   const inspection = activeInspection
   const track = inspection?.video.videoId === videoId ? inspection.tracks.find((item) => item.id === trackId) : null
-  if (tabId === null || !track) throw new VideoInspectionError('track-unavailable')
+  if (tabId === null || inspection?.video.videoId !== videoId || (trackId !== null && !track)) {
+    throw new VideoInspectionError('track-unavailable')
+  }
   const revision = inspectionRevision
   const tab = await getActiveTab()
   if (signal.aborted) throw new VideoInspectionError('cancelled')
@@ -69,7 +71,7 @@ export async function loadActiveTranscript(videoId: string, trackId: string, sig
   if (signal.aborted) throw new VideoInspectionError('cancelled')
   if (revision !== inspectionRevision || activeInspection !== inspection ||
     currentTab?.id !== tabId || getVideoId(currentTab.url) !== videoId) throw new VideoInspectionError('video-changed')
-  if (response.result.transcript.languageCode !== track.languageCode) throw new VideoInspectionError('invalid-transcript')
+  if (track && response.result.transcript.languageCode !== track.languageCode) throw new VideoInspectionError('invalid-transcript')
   return response.result.transcript
 }
 

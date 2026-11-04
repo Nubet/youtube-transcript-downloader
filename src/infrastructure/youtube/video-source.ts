@@ -1,10 +1,11 @@
 import type {VideoSource} from '../../application/video-source.ts'
 import type {TranscriptSource} from '../../application/transcript-source.ts'
 import {isVideoId, VideoInspectionError} from '../../domain/video.ts'
-import {getCaptionUrl} from './caption-url.ts'
+import {getTrackCaptionUrl} from './caption-url.ts'
 import {parsePlayerPage, type PlayerPage} from './player-response.ts'
 import {loadTimedtext} from './timedtext-source.ts'
 import {fetchYouTubeText} from './youtube-request.ts'
+import {loadMobileCaptions} from './mobile-caption-source.ts'
 
 export function createYouTubeSource() {
   let page: PlayerPage | null = null
@@ -25,26 +26,31 @@ export function createYouTubeSource() {
     if (!selected) throw new VideoInspectionError('track-unavailable')
     const video = page.video
     const readTrack = (track: typeof selected) => {
-      const url = getCaptionUrl(track.baseUrl, videoId)
-      if (url.searchParams.getAll('lang').length !== 1 || url.searchParams.getAll('kind').length > 1 ||
-        url.searchParams.get('lang') !== selected.languageCode ||
-        (url.searchParams.get('kind') === 'asr') !== (selected.kind === 'auto') ||
-        url.searchParams.has('tlang')) throw new VideoInspectionError('track-unavailable')
+      const url = getTrackCaptionUrl(track.baseUrl, videoId, selected)
       return loadTimedtext(url.href, videoId, signal)
     }
 
     let cues
     try {
-      cues = await readTrack(selected)
+      try {
+        cues = await readTrack(selected)
+      } catch (error) {
+        if (!(error instanceof VideoInspectionError) ||
+          ![401, 403, 410].includes(error.httpStatus ?? 0) || signal.aborted) throw error
+        const refreshed = await readPlayerPage(videoId, signal)
+        const replacement = refreshed.tracks.find((track) => track.id === trackId &&
+          track.languageCode === selected.languageCode && track.kind === selected.kind)
+        if (!replacement) throw new VideoInspectionError('track-unavailable')
+        cues = await readTrack(replacement)
+        if (page?.video.videoId === videoId && !signal.aborted) page = refreshed
+      }
     } catch (error) {
       if (!(error instanceof VideoInspectionError) ||
-        ![401, 403, 410].includes(error.httpStatus ?? 0) || signal.aborted) throw error
-      const refreshed = await readPlayerPage(videoId, signal)
-      const replacement = refreshed.tracks.find((track) => track.id === trackId &&
-        track.languageCode === selected.languageCode && track.kind === selected.kind)
-      if (!replacement) throw new VideoInspectionError('track-unavailable')
-      cues = await readTrack(replacement)
-      if (page?.video.videoId === videoId && !signal.aborted) page = refreshed
+        (!['empty-transcript', 'invalid-transcript'].includes(error.code) &&
+          ![401, 403, 410].includes(error.httpStatus ?? 0)) || signal.aborted) throw error
+      const mobile = await loadMobileCaptions(videoId, selected, signal)
+      if (!mobile) throw error
+      cues = mobile
     }
     if (signal.aborted) throw new VideoInspectionError('cancelled')
     return {

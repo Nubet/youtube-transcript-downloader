@@ -11,6 +11,7 @@ import {
 } from '../messaging/transcript-messages.ts'
 import {createVideoSession} from './video-session.ts'
 import {createTranscriptSession} from './transcript-session.ts'
+import {loadPanelTranscript} from '../infrastructure/youtube/panel/panel-source.ts'
 
 declare global {
   interface Window {
@@ -23,7 +24,11 @@ export default function initial() {
   const source = createYouTubeSource()
   const readVideoId = () => getVideoId(location.href)
   const session = createVideoSession(readVideoId, source.inspect)
-  const transcripts = createTranscriptSession(readVideoId, source.load)
+  const transcripts = createTranscriptSession(readVideoId, async (videoId, trackId, signal) => {
+    if (trackId !== null) return source.load(videoId, trackId, signal)
+    const inspection = await session.inspect(videoId)
+    return loadPanelTranscript(inspection.video, signal)
+  })
 
   const onMessage = (
     message: unknown,

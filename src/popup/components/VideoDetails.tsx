@@ -9,9 +9,12 @@ const ERROR_MESSAGES = {
   unavailable: 'Video unavailable. Check access in the YouTube tab.',
   'video-changed': 'Video changed. Refresh to load the current one.',
   connection: 'Couldn’t reach the YouTube tab. Reload the page.',
-  'empty-transcript': 'YouTube returned empty captions. Retry or change language.',
+  'empty-transcript': 'Direct captions unavailable. Try the YouTube transcript.',
   'invalid-transcript': 'Caption data is incomplete. Retry or change language.',
   'track-unavailable': 'Caption track unavailable. Refresh to update languages.',
+  'panel-unavailable': 'Open the transcript in the YouTube tab, then retry.',
+  'panel-incomplete': 'Couldn’t read the full transcript. Keep the tab open and retry.',
+  'panel-filtered': 'Clear the transcript’s search filter in YouTube, then retry.',
   cancelled: 'Loading cancelled.',
 } satisfies Record<VideoErrorCode, string>
 
@@ -45,13 +48,26 @@ export default function VideoDetails({state}: {state: PopupState}) {
 export function TranscriptStatus({selection}: {selection: TranscriptSelection}) {
   if (selection.status === 'none' || selection.status === 'ready') return null
   if (selection.status === 'loading') {
+    if (selection.trackId === null) {
+      return (
+        <div className="panel-progress">
+          <p className="status-message" role="status">Reading YouTube transcript…</p>
+          <button className="text-button" type="button" onClick={popupStore.cancelTranscript}>Cancel</button>
+        </div>
+      )
+    }
     return <p className="status-message" role="status">Loading transcript…</p>
   }
   return (
     <div className="transcript-error">
       <p className="error-message" role="alert">{ERROR_MESSAGES[selection.code]}</p>
-      <button className="text-button" type="button"
-        onClick={() => void popupStore.selectLanguage(selection.trackId)}>Retry</button>
+      <div className="recovery-actions">
+        {selection.trackId !== null && (
+          <button className="text-button" type="button" onClick={() => void popupStore.selectLanguage(null)}>Use YouTube transcript</button>
+        )}
+        <button className="text-button" type="button"
+          onClick={() => void popupStore.selectLanguage(selection.trackId)}>Retry</button>
+      </div>
     </div>
   )
 }

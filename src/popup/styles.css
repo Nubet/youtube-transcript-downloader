@@ -95,6 +95,7 @@ fieldset:disabled,
 }
 
 .icon-button {
+  width: 32px;
   flex: 0 0 32px;
   height: 32px;
   background: transparent;
@@ -324,4 +325,52 @@ fieldset:disabled,
 
 .action-feedback {
   text-align: center;
+}
+
+.recovery-actions,
+.panel-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.preferences {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  font-size: 14px;
+}
+
+.preferred-language {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preferred-language select {
+  width: 100%;
+}
+
+.settings-heading {
+  margin: 4px 2px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.metadata-option {
+  cursor: pointer;
+}
+
+.metadata-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--blue);
 }

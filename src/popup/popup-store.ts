@@ -12,9 +12,9 @@ export type ExportState =
 
 export type TranscriptSelection =
   | {status: 'none'}
-  | {status: 'loading'; trackId: string}
-  | {status: 'ready'; trackId: string; transcript: Transcript; exportState: ExportState}
-  | {status: 'error'; trackId: string; code: VideoErrorCode}
+  | {status: 'loading'; trackId: string | null}
+  | {status: 'ready'; trackId: string | null; transcript: Transcript; exportState: ExportState}
+  | {status: 'error'; trackId: string | null; code: VideoErrorCode}
 
 export type PopupState =
   | {status: 'loading'}
@@ -68,11 +68,11 @@ export function createPopupStore(dependencies: PopupDependencies) {
     }
   }
 
-  async function selectLanguage(trackId: string) {
+  async function selectLanguage(trackId: string | null) {
     if (snapshot.status !== 'ready') return
     const inspection = snapshot.inspection
     const track = inspection.tracks.find((item) => item.id === trackId)
-    if (!track) return
+    if (trackId !== null && !track) return
     const currentRevision = ++revision
     operation?.abort()
     const controller = new AbortController()
@@ -82,7 +82,7 @@ export function createPopupStore(dependencies: PopupDependencies) {
       const transcript = await dependencies.load(inspection.video.videoId, trackId, controller.signal)
       if (currentRevision !== revision || controller.signal.aborted) return
       if (transcript.videoId !== inspection.video.videoId || transcript.trackId !== trackId ||
-        transcript.languageCode !== track.languageCode) throw new VideoInspectionError('invalid-transcript')
+        (track && transcript.languageCode !== track.languageCode)) throw new VideoInspectionError('invalid-transcript')
       publish({status: 'ready', inspection, selection: {status: 'ready', trackId, transcript, exportState: {status: 'idle'}}})
     } catch (error) {
       if (currentRevision !== revision || controller.signal.aborted) return
@@ -93,10 +93,18 @@ export function createPopupStore(dependencies: PopupDependencies) {
     }
   }
 
+  function cancelTranscript() {
+    if (snapshot.status !== 'ready' || snapshot.selection.status !== 'loading') return
+    revision++
+    operation?.abort()
+    publish({...snapshot, selection: {status: 'error', trackId: snapshot.selection.trackId, code: 'cancelled'}})
+  }
+
   function getExport(options: ExportOptions): TranscriptExport | null {
     if (snapshot.status !== 'ready' || snapshot.selection.status !== 'ready') return null
     const transcript = snapshot.selection.transcript
-    const key = `${options.format}:${options.format === 'txt' && options.includeTimestamps}`
+    const key = options.format === 'txt'
+      ? `txt:${options.includeTimestamps}:${options.includeTitle}:${options.includeLink}` : options.format
     if (prepared?.transcript !== transcript || prepared.key !== key) {
       prepared = {transcript, key, file: prepareExport(transcript, options)}
     }
@@ -127,6 +135,7 @@ export function createPopupStore(dependencies: PopupDependencies) {
     getSnapshot: () => snapshot,
     reload,
     selectLanguage,
+    cancelTranscript,
     getExport,
     exportTranscript,
     subscribe(listener: () => void) {

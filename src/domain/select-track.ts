@@ -1,7 +1,7 @@
 import type {CaptionTrack} from './video.ts'
 
 export function selectTrack(tracks: readonly CaptionTrack[], language: string, preferredLanguage: string | null = null): CaptionTrack | null {
-  for (const candidate of [preferredLanguage, language]) {
+  for (const candidate of [preferredLanguage ?? language, 'en']) {
     if (!candidate) continue
     const locale = candidate.toLowerCase()
     const primaryLanguage = locale.split('-')[0]

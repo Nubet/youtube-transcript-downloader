@@ -25,7 +25,7 @@ export type TranscriptLoadRequest = {
   type: 'transcript.load'
   requestId: string
   videoId: string
-  trackId: string
+  trackId: string | null
 }
 
 export type TranscriptCancelRequest = Omit<TranscriptLoadRequest, 'type' | 'trackId'> & {
@@ -36,13 +36,14 @@ export type TranscriptLoadResponse = {
   type: 'transcript.loaded'
   requestId: string
   videoId: string
-  trackId: string
+  trackId: string | null
   result: {status: 'ready'; transcript: Transcript} | {status: 'error'; code: VideoErrorCode}
 }
 
 const ERROR_CODES: readonly VideoErrorCode[] = [
   'network', 'timeout', 'page-data', 'unavailable', 'video-changed', 'connection',
   'empty-transcript', 'invalid-transcript', 'track-unavailable', 'cancelled',
+  'panel-unavailable', 'panel-incomplete', 'panel-filtered',
 ]
 
 export function isVideoInspectRequest(value: unknown): value is VideoInspectRequest {
@@ -55,8 +56,8 @@ export function isVideoInspectRequest(value: unknown): value is VideoInspectRequ
 export function isTranscriptLoadRequest(value: unknown): value is TranscriptLoadRequest {
   return isRecord(value) && value.type === 'transcript.load' &&
     typeof value.requestId === 'string' && value.requestId.length > 0 && value.requestId.length <= 100 &&
-    isVideoId(value.videoId) && typeof value.trackId === 'string' && value.trackId.length > 0 &&
-    value.trackId.length <= 256
+    isVideoId(value.videoId) && (value.trackId === null ||
+      (typeof value.trackId === 'string' && value.trackId.length > 0 && value.trackId.length <= 256))
 }
 
 export function isTranscriptCancelRequest(value: unknown): value is TranscriptCancelRequest {
@@ -68,16 +69,19 @@ export function isTranscriptCancelRequest(value: unknown): value is TranscriptCa
 export function isTranscriptLoadResponse(value: unknown): value is TranscriptLoadResponse {
   if (!isRecord(value) || value.type !== 'transcript.loaded' ||
     typeof value.requestId !== 'string' || !isVideoId(value.videoId) ||
-    typeof value.trackId !== 'string' || !value.trackId || !isRecord(value.result)) return false
+    (value.trackId !== null && (typeof value.trackId !== 'string' || !value.trackId)) || !isRecord(value.result)) return false
   const result = value.result
   if (result.status === 'error') return ERROR_CODES.some((code) => code === result.code)
   if (result.status !== 'ready' || !isRecord(result.transcript)) return false
   const transcript = result.transcript
+  const validSource = value.trackId === null
+    ? transcript.source === 'panel' && transcript.timing === 'estimated' && transcript.languageCode === null
+    : transcript.source === 'timedtext' && transcript.timing === 'exact' &&
+      typeof transcript.languageCode === 'string' && transcript.languageCode.length <= 63 &&
+      /^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/iu.test(transcript.languageCode)
   return transcript.videoId === value.videoId && transcript.trackId === value.trackId &&
     typeof transcript.title === 'string' && transcript.title.trim().length > 0 &&
-    typeof transcript.languageCode === 'string' && transcript.languageCode.length <= 63 &&
-    /^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/iu.test(transcript.languageCode) &&
-    transcript.source === 'timedtext' && transcript.timing === 'exact' &&
+    validSource &&
     Array.isArray(transcript.cues) && transcript.cues.length > 0 &&
     transcript.cues.every((cue: unknown) => isRecord(cue) &&
       typeof cue.startMs === 'number' && Number.isSafeInteger(cue.startMs) && cue.startMs >= 0 &&
