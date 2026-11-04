@@ -27,6 +27,7 @@
     "@types/chrome": "^0.0.287",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@xmldom/xmldom": "0.9.12",
     "extension": "^4.1.38",
     "typescript": "7.0.2"
   },
