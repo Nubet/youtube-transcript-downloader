@@ -1,0 +1,85 @@
+:root {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #22211f;
+  background: #faf8f4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --accent: #b93224;
+}
+
+body {
+  margin: 0;
+}
+
+.popup {
+  box-sizing: border-box;
+  width: 340px;
+  padding: 24px;
+  border-top: 4px solid var(--accent);
+}
+
+.popup-header,
+.popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-mark {
+  color: var(--accent);
+  font: 700 26px Georgia, serif;
+  letter-spacing: -3px;
+}
+
+.eyebrow,
+.popup-footer {
+  font: 11px 'Cascadia Code', Consolas, monospace;
+  color: #676158;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+
+h1 {
+  margin: 28px 0 10px;
+  font-size: 32px;
+  font-weight: 650;
+  line-height: 1.12;
+  letter-spacing: -1.4px;
+}
+
+.accent {
+  color: var(--accent);
+}
+
+.intro {
+  margin: 0;
+  color: #676158;
+  font-size: 14px;
+}
+
+.setup-note {
+  margin-top: 28px;
+  padding: 16px 0 16px 14px;
+  border-left: 2px solid var(--accent);
+}
+
+.setup-note h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.setup-note p {
+  margin: 0;
+  color: #676158;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.popup-footer {
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid #ded8cf;
+}

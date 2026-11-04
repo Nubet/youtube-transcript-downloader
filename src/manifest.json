@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/chrome-manifest.json",
+  "chromium:manifest_version": 3,
+  "firefox:manifest_version": 2,
+  "name": "YouTube Transcript Downloader",
+  "version": "0.1.0",
+  "description": "Download and copy transcripts from YouTube videos.",
+  "chromium:action": {
+    "default_title": "YouTube Transcript Downloader",
+    "default_popup": "popup/index.html"
+  },
+  "firefox:browser_action": {
+    "default_title": "YouTube Transcript Downloader",
+    "default_popup": "popup/index.html"
+  },
+  "firefox:browser_specific_settings": {
+    "gecko": {
+      "id": "youtube-transcript-downloader@norbertfila.com",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
+}

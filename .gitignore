@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.extension-js/
+.idea/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
