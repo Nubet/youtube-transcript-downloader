@@ -33,6 +33,13 @@ export default function Preferences({settings, tracks, disabled}: {
         </label>
       </div>
       <p id="language-help" className="status-message">Uses English if unavailable, then another available caption track.</p>
+      <div className="settings-group">
+        <label className="setting-row metadata-option">
+          <span>Show transcript button on YouTube</span>
+          <input type="checkbox" checked={settings.showPageButton} disabled={disabled}
+            onChange={(event) => void settingsStore.update({showPageButton: event.target.checked})} />
+        </label>
+      </div>
       <div>
         <h2 className="settings-heading">TXT metadata</h2>
         <div className="settings-group">

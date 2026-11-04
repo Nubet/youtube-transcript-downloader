@@ -13,6 +13,7 @@ import {createVideoSession} from './video-session.ts'
 import {createTranscriptSession} from './transcript-session.ts'
 import {loadPanelTranscript} from '../infrastructure/youtube/panel/panel-source.ts'
 import {isExtensionContextInvalidated as isInvalidated} from '../infrastructure/browser/runtime-context.ts'
+import {mountTranscriptButton} from './page/transcript-button.ts'
 
 declare global {
   interface Window {
@@ -23,6 +24,7 @@ declare global {
 export default function initial() {
   window.__youtubeTranscriptCleanup?.()
   let disposed = false
+  let pageButton: ReturnType<typeof mountTranscriptButton> | undefined
   const source = createYouTubeSource()
   const readVideoId = () => getVideoId(location.href)
   const session = createVideoSession(readVideoId, source.inspect)
@@ -94,6 +96,7 @@ export default function initial() {
       () => whileActive(() => void chrome.runtime.lastError)))
   }
   const onStart = () => {
+    pageButton?.navigationStarted()
     session.navigationStarted()
     transcripts.clear()
     source.clear()
@@ -104,11 +107,13 @@ export default function initial() {
     transcripts.clear()
     source.clear()
     notify('finished')
+    if (!disposed) pageButton?.navigationFinished()
   }
 
   const cleanup = () => {
     if (disposed) return
     disposed = true
+    pageButton?.dispose()
     session.dispose()
     transcripts.clear()
     source.clear()
@@ -132,6 +137,27 @@ export default function initial() {
     window.addEventListener('popstate', onFinish)
     window.addEventListener('pagehide', onStart)
     window.addEventListener('pageshow', onFinish)
+    if (typeof document !== 'undefined') whileActive(() => {
+      pageButton = mountTranscriptButton({
+        run: whileActive,
+        inspect: async (refresh) => {
+          const videoId = readVideoId()
+          if (!videoId) return null
+          if (refresh) { session.refresh(); transcripts.clear(); source.clear() }
+          return session.inspect(videoId)
+        },
+        load: async (videoId, trackId, signal) => {
+          const requestId = crypto.randomUUID()
+          const cancel = () => transcripts.cancel(requestId)
+          signal.addEventListener('abort', cancel, {once: true})
+          try {
+            if (signal.aborted) throw new VideoInspectionError('cancelled')
+            return await transcripts.load(videoId, trackId, requestId)
+          } finally { signal.removeEventListener('abort', cancel) }
+        },
+        onError: (error) => { if (isInvalidated(error)) cleanup() },
+      })
+    })
   }
   return cleanup
 }

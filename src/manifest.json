@@ -7,6 +7,12 @@
   "description": "Download and copy transcripts from YouTube videos.",
   "permissions": ["activeTab", "scripting", "storage", "downloads", "clipboardWrite"],
   "host_permissions": ["https://www.youtube.com/*"],
+  "chromium:background": {
+    "service_worker": "background/entry.ts"
+  },
+  "firefox:background": {
+    "scripts": ["background/entry.ts"]
+  },
   "content_scripts": [
     {
       "matches": ["https://www.youtube.com/*"],

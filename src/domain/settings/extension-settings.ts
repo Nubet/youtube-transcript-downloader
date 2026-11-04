@@ -5,6 +5,7 @@ export type ExtensionSettings = Readonly<{
   includeTimestamps: boolean
   includeTitle: boolean
   includeLink: boolean
+  showPageButton: boolean
   preferredLanguage: string | null
 }>
 
@@ -13,6 +14,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   includeTimestamps: false,
   includeTitle: false,
   includeLink: false,
+  showPageButton: false,
   preferredLanguage: null,
 }
 
@@ -27,6 +29,7 @@ export function parseSettings(value: unknown): ExtensionSettings {
     includeTimestamps: 'includeTimestamps' in data && typeof data.includeTimestamps === 'boolean' ? data.includeTimestamps : false,
     includeTitle: 'includeTitle' in data && typeof data.includeTitle === 'boolean' ? data.includeTitle : false,
     includeLink: 'includeLink' in data && typeof data.includeLink === 'boolean' ? data.includeLink : false,
+    showPageButton: 'showPageButton' in data && typeof data.showPageButton === 'boolean' ? data.showPageButton : false,
     preferredLanguage,
   }
 }
