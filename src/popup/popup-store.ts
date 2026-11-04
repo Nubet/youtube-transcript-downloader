@@ -9,7 +9,7 @@ import type {Playlist} from '../domain/playlist.ts'
 export type ExportAction = 'download' | 'copy'
 export type ExportState =
   | {status: 'idle'}
-  | {status: 'working' | 'success' | 'error'; action: ExportAction; file: TranscriptExport}
+  | {status: 'working' | 'success' | 'error'; action: ExportAction; file: TranscriptExport; error?: string}
 
 export type TranscriptSelection =
   | {status: 'none'}
@@ -120,8 +120,8 @@ export function createPopupStore(dependencies: PopupDependencies) {
       prepared.transcript !== snapshot.selection.transcript) return
     const {inspection, selection} = snapshot
     const currentRevision = revision
-    const publishExport = (status: 'working' | 'success' | 'error') => {
-      publish({status: 'ready', inspection, selection: {...selection, exportState: {status, action, file}}})
+    const publishExport = (status: 'working' | 'success' | 'error', error?: string) => {
+      publish({status: 'ready', inspection, selection: {...selection, exportState: {status, action, file, ...(error ? {error} : {})}}})
     }
     publishExport('working')
     try {
@@ -129,8 +129,8 @@ export function createPopupStore(dependencies: PopupDependencies) {
       const operation = action === 'copy' ? dependencies.copy(file.text) : dependencies.download(file)
       await operation
       if (currentRevision === revision) publishExport('success')
-    } catch {
-      if (currentRevision === revision) publishExport('error')
+    } catch (error) {
+      if (currentRevision === revision) publishExport('error', error instanceof Error ? error.message : undefined)
     }
   }
 

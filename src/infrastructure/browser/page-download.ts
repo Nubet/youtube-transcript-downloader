@@ -10,7 +10,7 @@ export function downloadFromPage(transcript: Transcript, options: ExportOptions)
         try {
           const error = chrome.runtime.lastError
           if (error || !isRecord(response) || response.ok !== true) {
-            reject(new Error(error?.message ?? 'Download was not accepted.'))
+            reject(new Error(error?.message ?? (isRecord(response) && typeof response.error === 'string' ? response.error : 'Download was not accepted.')))
           } else resolve()
         } catch (error) { reject(error) }
       })

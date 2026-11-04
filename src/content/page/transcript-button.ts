@@ -133,7 +133,7 @@ export function mountTranscriptButton(dependencies: Dependencies) {
         if (action.status === 'working') status.textContent = action.action === 'copy' ? 'Copying…' : 'Downloading…'
         if (action.status === 'error') {
           errorMessage.hidden = false
-          errorMessage.textContent = 'Couldn’t export. Try again.'
+          errorMessage.textContent = action.error ? `Couldn’t export: ${action.error}` : 'Couldn’t export. Try again.'
         }
       }
     }

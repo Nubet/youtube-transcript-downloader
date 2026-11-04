@@ -4,10 +4,15 @@ import {getVideoId} from '../youtube/video-context.ts'
 import {downloadTranscript} from './downloads.ts'
 
 export function handlePageDownload(message: unknown, sender: chrome.runtime.MessageSender,
-  respond: (response: {ok: boolean}) => void) {
+  respond: (response: {ok: boolean; error?: string}) => void) {
   if (sender.id !== chrome.runtime.id || sender.frameId !== 0 ||
-    !isPageDownloadRequest(message) || getVideoId(sender.url) !== message.transcript.videoId) return
-  void Promise.resolve().then(() => downloadTranscript(prepareExport(message.transcript, message.options)))
-    .then(() => respond({ok: true}), () => respond({ok: false}))
+    !sender.url?.startsWith('https://www.youtube.com/') || !isPageDownloadRequest(message)) return
+  void Promise.resolve().then(async () => {
+    // Check the live tab after YouTube's SPA navigation, rather than the original document URL.
+    const url = sender.tab?.id === undefined ? sender.url : (await chrome.tabs.get(sender.tab.id)).url
+    if (getVideoId(url) !== message.transcript.videoId) throw new Error('The video changed. Reload its transcript and try again.')
+    await downloadTranscript(prepareExport(message.transcript, message.options))
+  }).then(() => respond({ok: true}), (error: unknown) => respond({ok: false,
+    error: error instanceof Error ? error.message : 'Download was not accepted.'}))
   return true
 }
