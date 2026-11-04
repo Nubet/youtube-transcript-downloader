@@ -79,28 +79,38 @@ h1 {
   line-height: 1.6;
 }
 
-.track-list {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.track-list li {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 12px;
-  padding: 9px 0;
-  border-bottom: 1px solid #ded8cf;
+.language-field {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
   font-size: 13px;
-  overflow-wrap: anywhere;
 }
 
-.track-kind {
+.language-field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #b9afa2;
+  border-radius: 4px;
+  background: #faf8f4;
+  color: #22211f;
+  font: inherit;
+}
+
+.language-field select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.transcript-preview {
+  max-height: 150px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  margin-bottom: 0;
   color: #676158;
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .video-title {
@@ -117,6 +127,7 @@ h1 {
 
 .retry-button {
   margin-top: 12px;
+  margin-right: 8px;
   padding: 8px 16px;
   border: 1px solid var(--accent);
   border-radius: 4px;

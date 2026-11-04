@@ -1,22 +1,28 @@
 import {VideoInspectionError, type VideoInspection} from '../../domain/video.ts'
+import type {Transcript} from '../../domain/transcript.ts'
 import {
   isVideoInspectResponse,
   isVideoNavigationMessage,
+  isTranscriptLoadResponse,
   type VideoInspectRequest,
+  type TranscriptLoadRequest,
+  type TranscriptCancelRequest,
 } from '../../messaging/transcript-messages.ts'
 import {getVideoId} from '../youtube/video-context.ts'
 
 let activeTabId: number | null = null
 let inspectionRevision = 0
+let activeInspection: VideoInspection | null = null
 
-export async function inspectActiveVideo(): Promise<VideoInspection | null> {
+export async function inspectActiveVideo(refresh = false): Promise<VideoInspection | null> {
   const revision = ++inspectionRevision
+  activeInspection = null
   const tab = await getActiveTab()
   if (revision !== inspectionRevision) throw new VideoInspectionError('video-changed')
   activeTabId = tab?.id ?? null
   const videoId = getVideoId(tab?.url)
   if (!videoId || tab?.id === undefined) return null
-  const request = {type: 'video.inspect', requestId: crypto.randomUUID(), videoId} satisfies VideoInspectRequest
+  const request = {type: 'video.inspect', requestId: crypto.randomUUID(), videoId, refresh} satisfies VideoInspectRequest
   let response: unknown
   try {
     response = await sendMessage(tab.id, request)
@@ -38,7 +44,33 @@ export async function inspectActiveVideo(): Promise<VideoInspection | null> {
   if (revision !== inspectionRevision || currentTab?.id !== tab.id || getVideoId(currentTab.url) !== videoId) {
     throw new VideoInspectionError('video-changed')
   }
-  return response.result.inspection
+  activeInspection = response.result.inspection
+  return activeInspection
+}
+
+export async function loadActiveTranscript(videoId: string, trackId: string, signal: AbortSignal): Promise<Transcript> {
+  const tabId = activeTabId
+  const inspection = activeInspection
+  const track = inspection?.video.videoId === videoId ? inspection.tracks.find((item) => item.id === trackId) : null
+  if (tabId === null || !track) throw new VideoInspectionError('track-unavailable')
+  const revision = inspectionRevision
+  const tab = await getActiveTab()
+  if (signal.aborted) throw new VideoInspectionError('cancelled')
+  if (revision !== inspectionRevision || tab?.id !== tabId || getVideoId(tab.url) !== videoId) {
+    throw new VideoInspectionError('video-changed')
+  }
+  const request = {type: 'transcript.load', requestId: crypto.randomUUID(), videoId, trackId} satisfies TranscriptLoadRequest
+  const response = await sendMessage(tabId, request, signal)
+  if (signal.aborted) throw new VideoInspectionError('cancelled')
+  if (!isTranscriptLoadResponse(response) || response.requestId !== request.requestId ||
+    response.videoId !== videoId || response.trackId !== trackId) throw new VideoInspectionError('connection')
+  if (response.result.status === 'error') throw new VideoInspectionError(response.result.code)
+  const currentTab = await getActiveTab()
+  if (signal.aborted) throw new VideoInspectionError('cancelled')
+  if (revision !== inspectionRevision || activeInspection !== inspection ||
+    currentTab?.id !== tabId || getVideoId(currentTab.url) !== videoId) throw new VideoInspectionError('video-changed')
+  if (response.result.transcript.languageCode !== track.languageCode) throw new VideoInspectionError('invalid-transcript')
+  return response.result.transcript
 }
 
 export function subscribeToVideoNavigation(onStart: () => void, onFinish: () => void) {
@@ -74,11 +106,35 @@ function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
   })
 }
 
-function sendMessage(tabId: number, request: VideoInspectRequest): Promise<unknown> {
+function sendMessage(
+  tabId: number,
+  request: VideoInspectRequest | TranscriptLoadRequest,
+  signal?: AbortSignal
+): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new VideoInspectionError('timeout')), 20_000)
+    const cancel = () => {
+      if (request.type === 'transcript.load') {
+        chrome.tabs.sendMessage(tabId, {
+          type: 'transcript.cancel', requestId: request.requestId, videoId: request.videoId,
+        } satisfies TranscriptCancelRequest, {frameId: 0}, () => void chrome.runtime.lastError)
+      }
+    }
+    const abort = () => {
+      clearTimeout(timeout)
+      signal?.removeEventListener('abort', abort)
+      cancel()
+      reject(new VideoInspectionError('cancelled'))
+    }
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      cancel()
+      reject(new VideoInspectionError('timeout'))
+    }, request.type === 'transcript.load' ? 65_000 : 20_000)
+    if (signal?.aborted) { abort(); return }
+    signal?.addEventListener('abort', abort, {once: true})
     chrome.tabs.sendMessage(tabId, request, {frameId: 0}, (response: unknown) => {
       clearTimeout(timeout)
+      signal?.removeEventListener('abort', abort)
       const error = chrome.runtime.lastError
       if (error) reject(new Error(error.message))
       else resolve(response)

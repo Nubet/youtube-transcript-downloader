@@ -27,13 +27,19 @@ export type VideoErrorCode =
   | 'unavailable'
   | 'video-changed'
   | 'connection'
+  | 'empty-transcript'
+  | 'invalid-transcript'
+  | 'track-unavailable'
+  | 'cancelled'
 
 export class VideoInspectionError extends Error {
   readonly code: VideoErrorCode
+  readonly httpStatus: number | null
 
-  constructor(code: VideoErrorCode) {
+  constructor(code: VideoErrorCode, httpStatus: number | null = null) {
     super(code)
     this.name = 'VideoInspectionError'
     this.code = code
+    this.httpStatus = httpStatus
   }
 }

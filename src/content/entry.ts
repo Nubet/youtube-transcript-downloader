@@ -1,12 +1,16 @@
 import {VideoInspectionError} from '../domain/video.ts'
 import {getVideoId} from '../infrastructure/youtube/video-context.ts'
-import {inspectYouTubeVideo} from '../infrastructure/youtube/video-source.ts'
+import {createYouTubeSource} from '../infrastructure/youtube/video-source.ts'
 import {
   isVideoInspectRequest,
+  isTranscriptLoadRequest,
+  isTranscriptCancelRequest,
+  type TranscriptLoadResponse,
   type VideoInspectResponse,
   type VideoNavigationMessage,
 } from '../messaging/transcript-messages.ts'
 import {createVideoSession} from './video-session.ts'
+import {createTranscriptSession} from './transcript-session.ts'
 
 declare global {
   interface Window {
@@ -16,14 +20,43 @@ declare global {
 
 export default function initial() {
   window.__youtubeTranscriptCleanup?.()
-  const session = createVideoSession(() => getVideoId(location.href), inspectYouTubeVideo)
+  const source = createYouTubeSource()
+  const readVideoId = () => getVideoId(location.href)
+  const session = createVideoSession(readVideoId, source.inspect)
+  const transcripts = createTranscriptSession(readVideoId, source.load)
 
   const onMessage = (
     message: unknown,
     sender: chrome.runtime.MessageSender,
-    sendResponse: (response: VideoInspectResponse) => void
+    sendResponse: (response: VideoInspectResponse | TranscriptLoadResponse | {cancelled: true}) => void
   ) => {
-    if (sender.id !== chrome.runtime.id || !isVideoInspectRequest(message)) return
+    if (sender.id !== chrome.runtime.id) return
+    if (isTranscriptCancelRequest(message)) {
+      if (session.isCurrent(message.videoId)) transcripts.cancel(message.requestId)
+      sendResponse({cancelled: true})
+      return
+    }
+    if (isTranscriptLoadRequest(message)) {
+      const respond = (result: TranscriptLoadResponse['result']) => sendResponse({
+        type: 'transcript.loaded', requestId: message.requestId,
+        videoId: message.videoId, trackId: message.trackId, result,
+      })
+      if (!session.isCurrent(message.videoId)) {
+        respond({status: 'error', code: 'video-changed'})
+        return
+      }
+      void transcripts.load(message.videoId, message.trackId, message.requestId)
+        .then((transcript) => respond({status: 'ready', transcript}))
+        .catch((error: unknown) => respond({status: 'error',
+          code: error instanceof VideoInspectionError ? error.code : 'invalid-transcript'}))
+      return true
+    }
+    if (!isVideoInspectRequest(message)) return
+    if (message.refresh && session.isCurrent(message.videoId)) {
+      session.refresh()
+      transcripts.clear()
+      source.clear()
+    }
     const respond = (result: VideoInspectResponse['result']) => sendResponse({
       type: 'video.inspected', requestId: message.requestId, videoId: message.videoId, result,
     })
@@ -41,10 +74,14 @@ export default function initial() {
   }
   const onStart = () => {
     session.navigationStarted()
+    transcripts.clear()
+    source.clear()
     notify('started')
   }
   const onFinish = () => {
     session.navigationFinished()
+    transcripts.clear()
+    source.clear()
     notify('finished')
   }
 
@@ -57,6 +94,8 @@ export default function initial() {
 
   const cleanup = () => {
     session.dispose()
+    transcripts.clear()
+    source.clear()
     chrome.runtime.onMessage.removeListener(onMessage)
     window.removeEventListener('yt-navigate-start', onStart)
     window.removeEventListener('yt-navigate-finish', onFinish)

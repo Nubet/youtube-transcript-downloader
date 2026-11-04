@@ -1,5 +1,8 @@
 import {isVideoId, VideoInspectionError, type CaptionTrack, type VideoInspection} from '../../domain/video.ts'
 import {isRecord} from '../../shared/is-record.ts'
+import {getCaptionUrl} from './caption-url.ts'
+
+const languageNames = new Intl.DisplayNames(['en'], {type: 'language'})
 
 type DiscoveredTrack = CaptionTrack & {readonly baseUrl: string}
 
@@ -48,16 +51,7 @@ function parseTrack(value: unknown, index: number, videoId: string): DiscoveredT
     throw new VideoInspectionError('page-data')
   }
 
-  let url: URL
-  try {
-    url = new URL(value.baseUrl)
-  } catch {
-    throw new VideoInspectionError('page-data')
-  }
-  if (url.origin !== 'https://www.youtube.com' || url.username || url.password ||
-    url.pathname !== '/api/timedtext' || url.searchParams.get('v') !== videoId) {
-    throw new VideoInspectionError('page-data')
-  }
+  const url = getCaptionUrl(value.baseUrl, videoId)
 
   const kind = value.kind === 'asr' ? 'auto' : 'manual'
   const vssId = typeof value.vssId === 'string' ? value.vssId : `${value.languageCode}:${kind}`
@@ -82,7 +76,7 @@ function trackLabel(name: unknown, languageCode: string): string {
   }
 
   try {
-    return new Intl.DisplayNames(['en'], {type: 'language'}).of(languageCode) ?? languageCode
+    return languageNames.of(languageCode) ?? languageCode
   } catch {
     return languageCode
   }

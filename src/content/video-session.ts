@@ -8,6 +8,7 @@ export function createVideoSession(readVideoId: () => string | null, source: Vid
   let pending: Promise<VideoInspection> | null = null
   let pendingVideoId: string | null = null
   let cached: VideoInspection | null = null
+  const isCurrent = (videoId: string) => !navigating && readVideoId() === videoId
 
   function invalidate() {
     revision++
@@ -19,7 +20,7 @@ export function createVideoSession(readVideoId: () => string | null, source: Vid
   }
 
   async function inspect(videoId: string): Promise<VideoInspection> {
-    if (navigating || readVideoId() !== videoId) throw new VideoInspectionError('video-changed')
+    if (!isCurrent(videoId)) throw new VideoInspectionError('video-changed')
     if (cached?.video.videoId === videoId) return cached
     if (pending && pendingVideoId === videoId) return pending
 
@@ -28,19 +29,19 @@ export function createVideoSession(readVideoId: () => string | null, source: Vid
     const operation = new AbortController()
     controller = operation
     pendingVideoId = videoId
-    const isCurrent = () => !navigating && revision === currentRevision &&
+    const isOperationCurrent = () => !navigating && revision === currentRevision &&
       !operation.signal.aborted && readVideoId() === videoId
 
     pending = source(videoId, operation.signal)
       .then((inspection) => {
-        if (!isCurrent() || inspection.video.videoId !== videoId) {
+        if (!isOperationCurrent() || inspection.video.videoId !== videoId) {
           throw new VideoInspectionError('video-changed')
         }
         cached = inspection
         return inspection
       })
       .catch((error: unknown) => {
-        if (!isCurrent()) throw new VideoInspectionError('video-changed')
+        if (!isOperationCurrent()) throw new VideoInspectionError('video-changed')
         throw error
       })
       .finally(() => {
@@ -54,6 +55,8 @@ export function createVideoSession(readVideoId: () => string | null, source: Vid
   }
 
   return {
+    isCurrent,
+    refresh: invalidate,
     inspect,
     navigationStarted() {
       navigating = true

@@ -5,6 +5,15 @@
   "name": "YouTube Transcript Downloader",
   "version": "0.1.0",
   "description": "Download and copy transcripts from YouTube videos.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://www.youtube.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["content/entry.ts"],
+      "run_at": "document_start"
+    }
+  ],
   "chromium:action": {
     "default_title": "YouTube Transcript Downloader",
     "default_popup": "popup/index.html"
