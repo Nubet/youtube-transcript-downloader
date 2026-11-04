@@ -1,6 +1,6 @@
 import type {VideoErrorCode} from '../../domain/video.ts'
 import type {PopupState, TranscriptSelection} from '../popup-store.ts'
-import {popupStore} from '../popup-state.ts'
+import {popupStore, settingsStore} from '../popup-state.ts'
 
 const ERROR_MESSAGES = {
   network: 'Could not load data from YouTube. Check your connection and try again.',
@@ -41,7 +41,12 @@ export default function VideoDetails({state}: {state: PopupState}) {
         <label className="language-field">
           <span>Language</span>
           <select value={selection.status === 'none' ? '' : selection.trackId}
-            onChange={(event) => void popupStore.selectLanguage(event.target.value)}>
+            onChange={(event) => {
+              const track = inspection.tracks.find((item) => item.id === event.target.value)
+              if (!track) return
+              void settingsStore.update({preferredLanguage: track.languageCode})
+              void popupStore.selectLanguage(track.id)
+            }}>
             {inspection.tracks.map((track) => (
               <option key={track.id} value={track.id}>
                 {track.label} · {track.kind === 'auto' ? 'Auto-generated' : 'Manual'}

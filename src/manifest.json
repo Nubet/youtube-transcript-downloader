@@ -5,7 +5,7 @@
   "name": "YouTube Transcript Downloader",
   "version": "0.1.0",
   "description": "Download and copy transcripts from YouTube videos.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab", "scripting", "storage", "downloads", "clipboardWrite"],
   "host_permissions": ["https://www.youtube.com/*"],
   "content_scripts": [
     {
