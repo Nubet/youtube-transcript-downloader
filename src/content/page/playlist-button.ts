@@ -6,6 +6,8 @@ import {browserSettings} from '../../infrastructure/browser/settings.ts'
 import {isExtensionContextInvalidated} from '../../infrastructure/browser/runtime-context.ts'
 import {PAGE_STYLES} from './styles.ts'
 import {positionPanel} from './panel-position.ts'
+import {PAGE_PREFERENCES, mountPagePreferences} from './preferences.ts'
+import {queueSummary, jobSummary, batchSettingsSummary} from '../../popup/queue-presentation.ts'
 
 const PLAYLIST_TARGETS = [
   'ytd-playlist-header-renderer #top-level-buttons-computed',
@@ -30,16 +32,21 @@ export function mountPlaylistButton(run: (action: () => void) => void) {
     <section id="playlist-panel" popover="auto" role="dialog" aria-label="Playlist downloads">
       <header><strong>Playlist downloads</strong><button id="close" type="button" aria-label="Close playlist downloads">×</button></header>
       <p id="playlist-title"></p>
+      ${PAGE_PREFERENCES}
+      <p id="settings-note"></p>
       <p id="progress-text" role="status" aria-live="polite"></p>
       <progress id="progress" aria-label="Playlist progress" max="1" value="0" hidden></progress>
       <p id="current"></p><p id="queue-error" role="alert" hidden></p>
-      <div class="actions"><button id="pause" type="button" hidden>Pause</button><button id="resume" type="button" hidden>Resume</button><button id="cancel" type="button" hidden>Cancel</button></div>
+      <div class="actions"><button id="pause" type="button" hidden>Pause</button><button id="resume" type="button" hidden>Resume</button><button id="cancel" type="button" hidden>Cancel</button><button id="retry" type="button" hidden>Retry failed</button></div>
+      <details id="job-details"><summary>Show details</summary><ol id="jobs" class="queue-jobs"></ol><button id="more-jobs" type="button" hidden>Show more</button></details>
     </section>`
   const start = shadow.querySelector<HTMLButtonElement>('#start')!
   const menu = shadow.querySelector<HTMLButtonElement>('#menu')!
   const panel = shadow.querySelector<HTMLElement>('#playlist-panel')!
   let disposed = false, navigating = false, observing = false, starting = false
   let stopQueue: (() => void) | null = null
+  let visibleJobs = 50
+  const renderPreferences = mountPagePreferences(shadow, preferences, run, () => render())
   const currentBatch = () => [...queue.getSnapshot().state.batches].reverse().find((batch) => batch.playlistId === getPlaylistId(location.href))
 
   function close() {
@@ -57,16 +64,16 @@ export function mountPlaylistButton(run: (action: () => void) => void) {
     const snapshot = queue.getSnapshot()
     const batch = currentBatch()
     const progress = batch ? queueProgress(batch) : null
+    renderPreferences([])
     const active = batch && ['reading', 'queued', 'running', 'paused'].includes(batch.status)
     start.disabled = starting || snapshot.status === 'loading'
     start.textContent = starting || batch?.status === 'reading' ? 'Reading playlist…'
       : batch?.status === 'paused' ? 'Playlist paused'
       : active && progress ? `Downloading · ${progress.processed}/${progress.total}` : 'Download playlist'
     shadow.querySelector('#playlist-title')!.textContent = batch?.title ?? ''
-    shadow.querySelector('#progress-text')!.textContent = !batch ? 'Download all transcripts using your saved settings.'
-      : batch.status === 'reading' ? 'Reading the complete playlist…'
-      : batch.status === 'error' ? 'Couldn’t read the full playlist. No partial batch was started.'
-      : `${batch.status === 'finished' ? 'Finished · ' : batch.status === 'paused' ? 'Paused · ' : batch.status === 'cancelled' ? 'Cancelled · ' : ''}${progress!.processed} of ${progress!.total} processed · Downloaded ${progress!.completed} · Failed ${progress!.failed} · Skipped ${progress!.skipped}`
+    shadow.querySelector('#progress-text')!.textContent = batch ? queueSummary(batch) : 'Download all transcripts using your saved settings.'
+    shadow.querySelector('#settings-note')!.textContent = batch
+      ? `Batch: ${batchSettingsSummary(batch)}. Settings changes affect future downloads; retries keep this batch’s settings.` : ''
     const bar = shadow.querySelector<HTMLProgressElement>('#progress')!
     bar.hidden = !progress?.total
     bar.max = progress?.total || 1
@@ -74,11 +81,23 @@ export function mountPlaylistButton(run: (action: () => void) => void) {
     const current = batch?.jobs.find((job) => ['loading', 'downloading'].includes(job.status))
     shadow.querySelector('#current')!.textContent = current ? `Current: ${current.title}` : ''
     const error = shadow.querySelector<HTMLElement>('#queue-error')!
-    error.hidden = !snapshot.error
-    error.textContent = snapshot.error ?? ''
+    const settingsError = ['read-error', 'write-error'].includes(preferences.getSnapshot().status)
+    error.hidden = !snapshot.error && !settingsError
+    error.textContent = snapshot.error ?? (settingsError ? 'Preferences unavailable. Reopen the menu to try again.' : '')
     shadow.querySelector<HTMLElement>('#pause')!.hidden = !active || batch?.status === 'paused'
     shadow.querySelector<HTMLElement>('#resume')!.hidden = batch?.status !== 'paused'
     shadow.querySelector<HTMLElement>('#cancel')!.hidden = !active
+    const retry = shadow.querySelector<HTMLButtonElement>('#retry')!
+    retry.hidden = batch?.status !== 'error' && !(batch?.status === 'finished' && progress?.failed)
+    retry.textContent = batch?.status === 'error' ? 'Retry playlist' : 'Retry failed'
+    shadow.querySelector<HTMLElement>('#job-details')!.hidden = !batch?.jobs.length
+    const jobs = batch?.jobs.slice(0, visibleJobs) ?? []
+    shadow.querySelector('#jobs')!.replaceChildren(...jobs.map((job) => {
+      const row = document.createElement('li')
+      row.textContent = `${job.position}. ${job.title} — ${jobSummary(job)}`
+      return row
+    }))
+    shadow.querySelector<HTMLElement>('#more-jobs')!.hidden = !batch || batch.jobs.length <= visibleJobs
   }
   function synchronize() {
     if (disposed) return
@@ -115,7 +134,8 @@ export function mountPlaylistButton(run: (action: () => void) => void) {
   menu.addEventListener('click', () => run(() => { if (panel.matches(':popover-open')) close(); else open() }))
   shadow.querySelector('#close')!.addEventListener('click', () => { close(); menu.focus() })
   panel.addEventListener('toggle', () => { if (!panel.matches(':popover-open')) menu.setAttribute('aria-expanded', 'false') })
-  for (const action of ['pause', 'resume', 'cancel'] as const) {
+  shadow.querySelector('#more-jobs')!.addEventListener('click', () => { visibleJobs += 50; render() })
+  for (const action of ['pause', 'resume', 'cancel', 'retry'] as const) {
     shadow.querySelector(`#${action}`)!.addEventListener('click', () => run(() => {
       const batch = currentBatch()
       if (batch) void queue.command(batch.id, action)

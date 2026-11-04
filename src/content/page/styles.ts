@@ -45,5 +45,7 @@ p { margin: 10px 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; 
 .recovery { display: flex; gap: 8px; }
 .recovery button { padding: 6px 10px; font-size: 12px; }
 progress { width: 100%; height: 8px; accent-color: var(--blue); }
+.queue-jobs { list-style: none; padding: 0; margin: 12px 0; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; }
+.queue-jobs li { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 [hidden] { display: none !important; }
 `

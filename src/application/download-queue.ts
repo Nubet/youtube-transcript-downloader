@@ -158,7 +158,8 @@ export async function createDownloadQueue(dependencies: QueueDependencies) {
       }
     })
     if (action === 'cancel') {
-      for (const job of batch.jobs) if (job.status === 'cancelled' && job.downloadId !== null) await dependencies.cancelDownload(job.downloadId)
+      await Promise.all(batch.jobs.flatMap((job) => job.status === 'cancelled' && job.downloadId !== null
+        ? [dependencies.cancelDownload(job.downloadId)] : []))
     }
   }
 
