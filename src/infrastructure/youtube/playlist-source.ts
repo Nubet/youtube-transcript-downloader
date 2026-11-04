@@ -17,22 +17,38 @@ function find(value: unknown, key: string): unknown {
 
 function text(value: unknown): string {
   if (!isRecord(value)) return ''
+  if (typeof value.content === 'string') return value.content
   if (typeof value.simpleText === 'string') return value.simpleText
   return Array.isArray(value.runs) ? value.runs.map((run: unknown) => isRecord(run) && typeof run.text === 'string' ? run.text : '').join('') : ''
 }
 
-export function parsePlaylistItems(items: unknown, offset: number) {
+export function parsePlaylistItems(items: unknown, offset: number, playlistId: string): {videos: PlaylistVideo[]; continuation: string | null} {
   if (!Array.isArray(items)) throw new VideoInspectionError('page-data')
   const videos: PlaylistVideo[] = []
   let continuation: string | null = null
   for (const item of items) {
     if (!isRecord(item)) throw new VideoInspectionError('page-data')
-    if (isRecord(item.playlistVideoRenderer)) {
+    if (isRecord(item.itemSectionRenderer)) {
+      const section = parsePlaylistItems(item.itemSectionRenderer.contents, offset + videos.length, playlistId)
+      videos.push(...section.videos)
+      continuation = section.continuation ?? continuation
+    } else if (isRecord(item.lockupViewModel)) {
+      const video = item.lockupViewModel
+      if (video.contentType !== 'LOCKUP_CONTENT_TYPE_VIDEO') throw new VideoInspectionError('page-data')
+      const endpoint = find(video.rendererContext, 'watchEndpoint')
+      if (isRecord(endpoint) && (endpoint.playlistId !== playlistId || endpoint.videoId !== video.contentId)) {
+        throw new VideoInspectionError('page-data')
+      }
+      const metadata = find(video.metadata, 'lockupMetadataViewModel')
+      videos.push({videoId: isRecord(endpoint) && isVideoId(video.contentId) ? video.contentId : null,
+        title: isRecord(metadata) ? text(metadata.title) || 'Unavailable video' : 'Unavailable video',
+        position: offset + videos.length + 1})
+    } else if (isRecord(item.playlistVideoRenderer)) {
       const video = item.playlistVideoRenderer
       videos.push({videoId: isVideoId(video.videoId) && video.isPlayable !== false ? video.videoId : null,
         title: text(video.title) || 'Unavailable video', position: offset + videos.length + 1})
-    } else if ('continuationItemRenderer' in item) {
-      const command = find(item.continuationItemRenderer, 'continuationCommand')
+    } else if ('continuationItemRenderer' in item || 'continuationItemViewModel' in item) {
+      const command = find(item.continuationItemRenderer ?? find(item.continuationItemViewModel, 'innertubeCommand'), 'continuationCommand')
       if (!isRecord(command) || typeof command.token !== 'string' || !command.token) throw new VideoInspectionError('page-data')
       continuation = command.token
     } else throw new VideoInspectionError('page-data')
@@ -44,12 +60,14 @@ export const loadPlaylist: PlaylistSource = async (id, signal) => {
   if (!isPlaylistId(id)) throw new VideoInspectionError('page-data')
   const html = await fetchYouTubeText(`https://www.youtube.com/playlist?list=${encodeURIComponent(id)}&hl=en`, signal)
   const data = readScriptObject(html, /(?:\bytInitialData\b|window\s*\[\s*["']ytInitialData["']\s*\])\s*=\s*/gu)
-  const list = find(data, 'playlistVideoListRenderer')
+  const legacyList = find(data, 'playlistVideoListRenderer')
+  const list = legacyList ?? (isRecord(data) ? find(data.contents, 'itemSectionRenderer') : undefined)
   if (!isRecord(list)) throw new VideoInspectionError('unavailable')
+  if (legacyList === undefined && list.targetId !== id) throw new VideoInspectionError('page-data')
   if (typeof list.playlistId === 'string' && list.playlistId !== id) throw new VideoInspectionError('page-data')
   const metadata = find(data, 'playlistMetadataRenderer')
   const title = isRecord(metadata) && typeof metadata.title === 'string' ? metadata.title : 'YouTube playlist'
-  let page = parsePlaylistItems(list.contents, 0)
+  let page = parsePlaylistItems(list.contents, 0, id)
   const videos = [...page.videos]
   const tokens = new Set<string>()
   if (page.continuation) {
@@ -68,7 +86,8 @@ export const loadPlaylist: PlaylistSource = async (id, signal) => {
       const append = find(response, 'appendContinuationItemsAction')
       const continued = find(response, 'playlistVideoListContinuation')
       const items = isRecord(append) ? append.continuationItems : isRecord(continued) ? continued.contents : undefined
-      page = parsePlaylistItems(items, videos.length)
+      if (isRecord(append) && typeof append.targetId === 'string' && ![id, `VL${id}`].includes(append.targetId)) throw new VideoInspectionError('page-data')
+      page = parsePlaylistItems(items, videos.length, id)
       if (isRecord(continued) && continued.continuations !== undefined) {
         const next = find(continued.continuations, 'nextContinuationData')
         if (next !== undefined) {
