@@ -1,11 +1,12 @@
 import type {TranscriptCue} from '../../domain/transcript.ts'
 import {VideoInspectionError} from '../../domain/video.ts'
+import {DOMParser, onErrorStopParsing} from '@xmldom/xmldom'
 
 export function parseXML(body: string): TranscriptCue[] {
   if (/<!DOCTYPE|<!ENTITY/iu.test(body)) throw new VideoInspectionError('invalid-transcript')
-  let doc: Document
+  let doc
   try {
-    doc = new DOMParser().parseFromString(body, 'text/xml')
+    doc = new DOMParser({onError: onErrorStopParsing}).parseFromString(body, 'text/xml')
   } catch {
     throw new VideoInspectionError('invalid-transcript')
   }
