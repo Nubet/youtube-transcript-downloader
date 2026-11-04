@@ -35,7 +35,7 @@ export function parsePlaylistItems(items: unknown, offset: number) {
       const command = find(item.continuationItemRenderer, 'continuationCommand')
       if (!isRecord(command) || typeof command.token !== 'string' || !command.token) throw new VideoInspectionError('page-data')
       continuation = command.token
-    }
+    } else throw new VideoInspectionError('page-data')
   }
   return {videos, continuation}
 }
@@ -69,6 +69,13 @@ export const loadPlaylist: PlaylistSource = async (id, signal) => {
       const continued = find(response, 'playlistVideoListContinuation')
       const items = isRecord(append) ? append.continuationItems : isRecord(continued) ? continued.contents : undefined
       page = parsePlaylistItems(items, videos.length)
+      if (isRecord(continued) && continued.continuations !== undefined) {
+        const next = find(continued.continuations, 'nextContinuationData')
+        if (next !== undefined) {
+          if (!isRecord(next) || typeof next.continuation !== 'string' || !next.continuation) throw new VideoInspectionError('page-data')
+          page.continuation = next.continuation
+        }
+      }
       videos.push(...page.videos)
     }
   }

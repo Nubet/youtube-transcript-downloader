@@ -5,7 +5,7 @@ import {createSettingsStore} from '../../popup/settings-store.ts'
 import {browserSettings} from '../../infrastructure/browser/settings.ts'
 import {isExtensionContextInvalidated} from '../../infrastructure/browser/runtime-context.ts'
 import {PAGE_STYLES} from './styles.ts'
-import {positionPanel} from './panel-position.ts'
+import {positionPanel, observePanelPosition} from './panel-position.ts'
 import {PAGE_PREFERENCES, mountPagePreferences} from './preferences.ts'
 import {queueSummary, jobSummary, batchSettingsSummary} from '../../popup/queue-presentation.ts'
 
@@ -43,6 +43,7 @@ export function mountPlaylistButton(run: (action: () => void) => void) {
   const start = shadow.querySelector<HTMLButtonElement>('#start')!
   const menu = shadow.querySelector<HTMLButtonElement>('#menu')!
   const panel = shadow.querySelector<HTMLElement>('#playlist-panel')!
+  const stopPositioning = observePanelPosition(panel, start)
   let disposed = false, navigating = false, observing = false, starting = false
   let stopQueue: (() => void) | null = null
   let visibleJobs = 50
@@ -79,7 +80,10 @@ export function mountPlaylistButton(run: (action: () => void) => void) {
     bar.max = progress?.total || 1
     bar.value = progress?.processed ?? 0
     const current = batch?.jobs.find((job) => ['loading', 'downloading'].includes(job.status))
-    shadow.querySelector('#current')!.textContent = current ? `Current: ${current.title}` : ''
+    const retrying = batch?.jobs.find((job) => job.status === 'pending' && job.retryAt !== null && job.retryAt > Date.now())
+    shadow.querySelector('#current')!.textContent = current ? `Current: ${current.title}`
+      : active && snapshot.state.cooldownUntil > Date.now() ? 'YouTube is limiting requests. Downloads will resume automatically.'
+      : active && retrying ? `Waiting to retry: ${retrying.title}` : ''
     const error = shadow.querySelector<HTMLElement>('#queue-error')!
     const settingsError = ['read-error', 'write-error'].includes(preferences.getSnapshot().status)
     error.hidden = !snapshot.error && !settingsError
@@ -146,7 +150,7 @@ export function mountPlaylistButton(run: (action: () => void) => void) {
     navigationFinished() { navigating = false; synchronize() },
     dispose() {
       if (disposed) return
-      disposed = true; observer.disconnect(); close(); host.remove()
+      disposed = true; observer.disconnect(); stopPositioning(); close(); host.remove()
       try { stopQueue?.(); stopPreferences() } catch (error) { if (!isExtensionContextInvalidated(error)) throw error }
     },
   }

@@ -9,7 +9,7 @@ import type {TranscriptSource} from '../../application/transcript-source.ts'
 import type {VideoInspection} from '../../domain/video.ts'
 import type {ExportOptions} from '../../application/prepare-export.ts'
 import {PAGE_STYLES} from './styles.ts'
-import {positionPanel} from './panel-position.ts'
+import {positionPanel, observePanelPosition} from './panel-position.ts'
 import {PAGE_PREFERENCES, mountPagePreferences} from './preferences.ts'
 
 export const BUTTON_TARGETS = [
@@ -47,6 +47,7 @@ export function mountTranscriptButton(dependencies: Dependencies) {
   const button = shadow.querySelector<HTMLButtonElement>('#open')!
   const quickDownload = shadow.querySelector<HTMLButtonElement>('#quick-download')!
   const panel = shadow.querySelector<HTMLElement>('#panel')!
+  const stopPositioning = observePanelPosition(panel, quickDownload)
   const language = shadow.querySelector<HTMLSelectElement>('#language')!
   const status = shadow.querySelector<HTMLElement>('#status')!
   const errorMessage = shadow.querySelector<HTMLElement>('#error')!
@@ -242,6 +243,7 @@ export function mountTranscriptButton(dependencies: Dependencies) {
       if (disposed) return
       disposed = true
       observer.disconnect()
+      stopPositioning()
       close()
       host.remove()
       try { stopPreferences() } catch (error) { if (!isExtensionContextInvalidated(error)) throw error }

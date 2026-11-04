@@ -4,16 +4,23 @@ import {queueProgress} from '../../domain/download-queue.ts'
 import {queueStore} from '../popup-state.ts'
 import {queueSummary, jobSummary, batchSettingsSummary} from '../queue-presentation.ts'
 
+function BatchActivity({batch}: {batch: DownloadBatch}) {
+  const current = batch.jobs.find((job) => job.status === 'loading' || job.status === 'downloading')
+  if (current) return <p className="status-message">Current: {current.title}</p>
+  const retrying = batch.jobs.find((job) => job.status === 'pending' && job.retryAt !== null)
+  return retrying && ['queued', 'running'].includes(batch.status)
+    ? <p className="status-message">Waiting to retry: {retrying.title}</p> : null
+}
+
 function Batch({batch}: {batch: DownloadBatch}) {
   const [visibleJobs, setVisibleJobs] = useState(50)
   const progress = queueProgress(batch)
   const active = ['reading', 'queued', 'running', 'paused'].includes(batch.status)
-  const current = batch.jobs.find((job) => job.status === 'loading' || job.status === 'downloading')
   return <section className="queue-batch" aria-labelledby={`batch-${batch.id}`}>
     <h2 id={`batch-${batch.id}`}>{batch.title}</h2>
     <p className="status-message" role="status">{queueSummary(batch)}</p>
     {progress.total > 0 && <progress max={progress.total} value={progress.processed} aria-label={`${batch.title} progress`} />}
-    {current && <p className="status-message">Current: {current.title}</p>}
+    <BatchActivity batch={batch} />
     <details>
       <summary>Batch settings</summary>
       <p className="status-message">{batchSettingsSummary(batch)}</p>
@@ -43,6 +50,7 @@ export default function QueuePanel() {
   const snapshot = useSyncExternalStore(queueStore.subscribe, queueStore.getSnapshot)
   const [visibleBatches, setVisibleBatches] = useState(10)
   return <section className="queue-panel" aria-label="Playlist download queue">
+    {snapshot.state.cooldownUntil > 0 && <p className="status-message" role="status">YouTube is limiting requests. Downloads will resume automatically.</p>}
     {snapshot.status === 'loading' && <p className="status-message" role="status">Loading downloads…</p>}
     {snapshot.error && <div className="preference-error"><p className="error-message" role="alert">{snapshot.error}</p>
       <button className="text-button" onClick={() => void queueStore.refresh()}>Retry</button></div>}

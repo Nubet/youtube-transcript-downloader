@@ -22,11 +22,17 @@ export async function createDownloadQueue(dependencies: QueueDependencies) {
   let running: Promise<void> | null = null
   let wakeAgain = false
   let active: {batchId: string; controller: AbortController} | null = null
+  let storageError: Error | null = null
 
   function change(update: () => void) {
     const result = writes.then(async () => {
+      if (storageError) throw storageError
       update()
-      await dependencies.save(structuredClone(state))
+      try { await dependencies.save(structuredClone(state)) }
+      catch (error) {
+        storageError = error instanceof Error ? error : new Error('Queue could not be saved')
+        throw storageError
+      }
     })
     writes = result.catch(() => {})
     return result
@@ -101,8 +107,10 @@ export async function createDownloadQueue(dependencies: QueueDependencies) {
   async function run() {
     do {
       wakeAgain = false
+      if (storageError) throw storageError
       if (await reconcile()) return
       if (state.cooldownUntil > dependencies.now()) return
+      if (state.cooldownUntil) await change(() => { state.cooldownUntil = 0 })
       const batch = state.batches.find((item) => ['reading', 'queued', 'running'].includes(item.status))
       if (!batch) return
       const pending = batch.jobs.find((job) => job.status === 'pending')
@@ -172,5 +180,8 @@ export async function createDownloadQueue(dependencies: QueueDependencies) {
     })
   }
 
-  return {enqueue, command, wake, recover, getSnapshot: () => structuredClone(state)}
+  return {enqueue, command, wake, recover, getSnapshot: () => {
+    if (storageError) throw storageError
+    return structuredClone(state)
+  }}
 }
