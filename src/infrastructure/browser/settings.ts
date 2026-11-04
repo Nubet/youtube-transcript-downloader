@@ -4,9 +4,11 @@ import {DEFAULT_SETTINGS, parseSettings, type ExtensionSettings} from '../../dom
 export const browserSettings: SettingsRepository = {
   read: () => new Promise((resolve, reject) => {
     chrome.storage.local.get(Object.keys(DEFAULT_SETTINGS), (values) => {
-      const error = chrome.runtime.lastError
-      if (error) reject(new Error(error.message))
-      else resolve(parseSettings(values))
+      try {
+        const error = chrome.runtime.lastError
+        if (error) reject(new Error(error.message))
+        else resolve(parseSettings(values))
+      } catch (error) { reject(error) }
     })
   }),
   write: (patch) => new Promise((resolve, reject) => {
@@ -15,9 +17,11 @@ export const browserSettings: SettingsRepository = {
       .filter((key) => Object.hasOwn(patch, key))
       .map((key) => [key, valid[key as keyof ExtensionSettings]]))
     chrome.storage.local.set(values, () => {
-      const error = chrome.runtime.lastError
-      if (error) reject(new Error(error.message))
-      else resolve()
+      try {
+        const error = chrome.runtime.lastError
+        if (error) reject(new Error(error.message))
+        else resolve()
+      } catch (error) { reject(error) }
     })
   }),
   subscribe(listener) {

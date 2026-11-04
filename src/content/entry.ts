@@ -12,6 +12,7 @@ import {
 import {createVideoSession} from './video-session.ts'
 import {createTranscriptSession} from './transcript-session.ts'
 import {loadPanelTranscript} from '../infrastructure/youtube/panel/panel-source.ts'
+import {isExtensionContextInvalidated as isInvalidated} from '../infrastructure/browser/runtime-context.ts'
 
 declare global {
   interface Window {
@@ -21,6 +22,7 @@ declare global {
 
 export default function initial() {
   window.__youtubeTranscriptCleanup?.()
+  let disposed = false
   const source = createYouTubeSource()
   const readVideoId = () => getVideoId(location.href)
   const session = createVideoSession(readVideoId, source.inspect)
@@ -30,19 +32,33 @@ export default function initial() {
     return loadPanelTranscript(inspection.video, signal)
   })
 
+  const whileActive = (action: () => void) => {
+    if (disposed) return
+    try {
+      if (!chrome.runtime.id) { cleanup(); return }
+      action()
+    } catch (error) {
+      if (!isInvalidated(error)) throw error
+      cleanup()
+    }
+  }
+
   const onMessage = (
     message: unknown,
     sender: chrome.runtime.MessageSender,
     sendResponse: (response: VideoInspectResponse | TranscriptLoadResponse | {cancelled: true}) => void
   ) => {
-    if (sender.id !== chrome.runtime.id) return
+    let authorized = false
+    whileActive(() => { authorized = sender.id === chrome.runtime.id })
+    if (!authorized) return
+    const reply: typeof sendResponse = (response) => whileActive(() => sendResponse(response))
     if (isTranscriptCancelRequest(message)) {
       if (session.isCurrent(message.videoId)) transcripts.cancel(message.requestId)
-      sendResponse({cancelled: true})
+      reply({cancelled: true})
       return
     }
     if (isTranscriptLoadRequest(message)) {
-      const respond = (result: TranscriptLoadResponse['result']) => sendResponse({
+      const respond = (result: TranscriptLoadResponse['result']) => reply({
         type: 'transcript.loaded', requestId: message.requestId,
         videoId: message.videoId, trackId: message.trackId, result,
       })
@@ -62,7 +78,7 @@ export default function initial() {
       transcripts.clear()
       source.clear()
     }
-    const respond = (result: VideoInspectResponse['result']) => sendResponse({
+    const respond = (result: VideoInspectResponse['result']) => reply({
       type: 'video.inspected', requestId: message.requestId, videoId: message.videoId, result,
     })
     void session.inspect(message.videoId)
@@ -74,8 +90,8 @@ export default function initial() {
   }
 
   const notify = (phase: VideoNavigationMessage['phase']) => {
-    chrome.runtime.sendMessage({type: 'video.navigation', phase} satisfies VideoNavigationMessage,
-      () => void chrome.runtime.lastError)
+    whileActive(() => chrome.runtime.sendMessage({type: 'video.navigation', phase} satisfies VideoNavigationMessage,
+      () => whileActive(() => void chrome.runtime.lastError)))
   }
   const onStart = () => {
     session.navigationStarted()
@@ -90,25 +106,32 @@ export default function initial() {
     notify('finished')
   }
 
-  chrome.runtime.onMessage.addListener(onMessage)
-  window.addEventListener('yt-navigate-start', onStart)
-  window.addEventListener('yt-navigate-finish', onFinish)
-  window.addEventListener('popstate', onFinish)
-  window.addEventListener('pagehide', onStart)
-  window.addEventListener('pageshow', onFinish)
-
   const cleanup = () => {
+    if (disposed) return
+    disposed = true
     session.dispose()
     transcripts.clear()
     source.clear()
-    chrome.runtime.onMessage.removeListener(onMessage)
     window.removeEventListener('yt-navigate-start', onStart)
     window.removeEventListener('yt-navigate-finish', onFinish)
     window.removeEventListener('popstate', onFinish)
     window.removeEventListener('pagehide', onStart)
     window.removeEventListener('pageshow', onFinish)
     if (window.__youtubeTranscriptCleanup === cleanup) delete window.__youtubeTranscriptCleanup
+    try {
+      if (chrome.runtime.id) chrome.runtime.onMessage.removeListener(onMessage)
+    } catch (error) {
+      if (!isInvalidated(error)) throw error
+    }
   }
   window.__youtubeTranscriptCleanup = cleanup
+  whileActive(() => chrome.runtime.onMessage.addListener(onMessage))
+  if (!disposed) {
+    window.addEventListener('yt-navigate-start', onStart)
+    window.addEventListener('yt-navigate-finish', onFinish)
+    window.addEventListener('popstate', onFinish)
+    window.addEventListener('pagehide', onStart)
+    window.addEventListener('pageshow', onFinish)
+  }
   return cleanup
 }
