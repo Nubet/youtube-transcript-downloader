@@ -29,7 +29,7 @@ export function registerDownloadQueue() {
     const extensionPage = !sender.tab && sender.url?.startsWith(chrome.runtime.getURL(''))
     const youtubePage = sender.tab && sender.frameId === 0 && sender.url?.startsWith('https://www.youtube.com/')
     if (!extensionPage && !youtubePage) return
-    if (message.type === 'queue.start' && (!youtubePage || getPlaylistId(sender.url!) !== message.playlistId)) return
+    if (message.type === 'queue.start' && youtubePage && getPlaylistId(sender.url!) !== message.playlistId) return
     void queue.then(async (instance): Promise<QueueResponse> => {
       let batchId: string | undefined
       if (message.type === 'queue.start') {

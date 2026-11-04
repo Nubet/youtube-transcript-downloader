@@ -9,18 +9,23 @@ import {
   type TranscriptCancelRequest,
 } from '../../messaging/transcript-messages.ts'
 import {getVideoId} from '../youtube/video-context.ts'
+import {getPlaylistId, type Playlist} from '../../domain/playlist.ts'
 
 let activeTabId: number | null = null
 let inspectionRevision = 0
 let activeInspection: VideoInspection | null = null
 
-export async function inspectActiveVideo(refresh = false): Promise<VideoInspection | null> {
+export async function inspectActivePage(refresh = false): Promise<VideoInspection | {playlist: Pick<Playlist, 'id' | 'title'>} | null> {
   const revision = ++inspectionRevision
   activeInspection = null
   const tab = await getActiveTab()
   if (revision !== inspectionRevision) throw new VideoInspectionError('video-changed')
   activeTabId = tab?.id ?? null
   const videoId = getVideoId(tab?.url)
+  const playlistId = getPlaylistId(tab?.url ?? '')
+  if (!videoId && playlistId) {
+    return {playlist: {id: playlistId, title: tab?.title?.replace(/\s*-\s*YouTube$/u, '') || 'YouTube playlist'}}
+  }
   if (!videoId || tab?.id === undefined) return null
   const request = {type: 'video.inspect', requestId: crypto.randomUUID(), videoId, refresh} satisfies VideoInspectRequest
   let response: unknown

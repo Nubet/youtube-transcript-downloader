@@ -4,6 +4,7 @@ import type {TranscriptSource} from '../application/transcript-source.ts'
 import {selectTrack} from '../domain/select-track.ts'
 import type {ExtensionSettings} from '../domain/settings/extension-settings.ts'
 import {prepareExport, type ExportOptions, type TranscriptExport} from '../application/prepare-export.ts'
+import type {Playlist} from '../domain/playlist.ts'
 
 export type ExportAction = 'download' | 'copy'
 export type ExportState =
@@ -19,11 +20,12 @@ export type TranscriptSelection =
 export type PopupState =
   | {status: 'loading'}
   | {status: 'unsupported'}
+  | {status: 'playlist'; playlist: Pick<Playlist, 'id' | 'title'>}
   | {status: 'ready'; inspection: VideoInspection; selection: TranscriptSelection}
   | {status: 'error'; code: VideoErrorCode}
 
 type PopupDependencies = {
-  inspect: (refresh: boolean) => Promise<VideoInspection | null>
+  inspect: (refresh: boolean) => Promise<VideoInspection | {playlist: Pick<Playlist, 'id' | 'title'>} | null>
   load: TranscriptSource
   browserLanguage: string
   getSettings: () => Promise<ExtensionSettings>
@@ -59,6 +61,7 @@ export function createPopupStore(dependencies: PopupDependencies) {
       const [inspection, settings] = await Promise.all([dependencies.inspect(refresh), dependencies.getSettings()])
       if (currentRevision !== revision) return
       if (!inspection) { publish({status: 'unsupported'}); return }
+      if ('playlist' in inspection) { publish({status: 'playlist', playlist: inspection.playlist}); return }
       publish({status: 'ready', inspection, selection: {status: 'none'}})
       const track = selectTrack(inspection.tracks, dependencies.browserLanguage, settings.preferredLanguage)
       if (track) await selectLanguage(track.id)

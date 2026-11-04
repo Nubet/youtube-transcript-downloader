@@ -20,10 +20,10 @@ const ERROR_MESSAGES = {
 
 export default function VideoDetails({state}: {state: PopupState}) {
   if (state.status === 'loading') {
-    return <p className="empty-state" role="status">Loading video…</p>
+    return <p className="empty-state" role="status">Loading page…</p>
   }
   if (state.status === 'unsupported') {
-    return <p className="empty-state" role="status">Open a YouTube video to get its transcript.</p>
+    return <p className="empty-state" role="status">Open a YouTube video or playlist to download transcripts.</p>
   }
   if (state.status === 'error') {
     return (
@@ -34,6 +34,7 @@ export default function VideoDetails({state}: {state: PopupState}) {
     )
   }
 
+  if (state.status === 'playlist') return <h2 className="video-title" title={state.playlist.title}>{state.playlist.title}</h2>
   const {inspection} = state
   return (
     <>

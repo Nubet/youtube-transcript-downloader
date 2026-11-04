@@ -5,6 +5,7 @@ import ExportControls from './components/ExportControls'
 import Preferences from './components/Preferences'
 import QueuePanel from './components/QueuePanel'
 import PopupHeader, {type PopupView} from './components/PopupHeader'
+import PlaylistDownload from './components/PlaylistDownload'
 
 export default function PopupApp() {
   const state = useSyncExternalStore(popupStore.subscribe, popupStore.getSnapshot)
@@ -15,9 +16,12 @@ export default function PopupApp() {
       <PopupHeader view={view} onViewChange={setView} refreshing={state.status === 'loading'} onRefresh={() => void popupStore.reload()} />
 
       <div hidden={view !== 'video'}>
-        <section className="video-details" aria-label="Video captions" aria-busy={state.status === 'loading'}>
+        <section className="video-details" aria-label={state.status === 'playlist' ? 'Playlist' : 'Video captions'} aria-busy={state.status === 'loading'}>
           <VideoDetails state={state} />
         </section>
+
+        {state.status === 'playlist' && <PlaylistDownload key={state.playlist.id} playlistId={state.playlist.id}
+          disabled={preferences.status !== 'ready'} onStarted={() => setView('queue')} />}
 
         {state.status === 'ready' && state.inspection.tracks.length > 0 && (
           <ExportControls inspection={state.inspection} selection={state.selection}

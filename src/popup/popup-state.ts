@@ -1,4 +1,4 @@
-import {inspectActiveVideo, loadActiveTranscript, subscribeToVideoNavigation} from '../infrastructure/browser/video-inspection.ts'
+import {inspectActivePage, loadActiveTranscript, subscribeToVideoNavigation} from '../infrastructure/browser/video-inspection.ts'
 import {createPopupStore} from './popup-store.ts'
 import {createSettingsStore} from './settings-store.ts'
 import {browserSettings} from '../infrastructure/browser/settings.ts'
@@ -10,7 +10,7 @@ export const settingsStore = createSettingsStore(browserSettings)
 export const queueStore = createQueueStore()
 
 export const popupStore = createPopupStore({
-  inspect: inspectActiveVideo,
+  inspect: inspectActivePage,
   load: loadActiveTranscript,
   browserLanguage: navigator.language,
   getSettings: settingsStore.load,

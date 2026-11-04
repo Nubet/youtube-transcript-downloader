@@ -266,6 +266,8 @@ fieldset:disabled,
   font-weight: 600;
 }
 
+.playlist-actions { grid-template-columns: 1fr; }
+
 .download-button {
   background: var(--primary);
   color: var(--primary-text);
