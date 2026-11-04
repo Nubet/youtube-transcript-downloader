@@ -15,6 +15,7 @@ import {loadPanelTranscript} from '../infrastructure/youtube/panel/panel-source.
 import {isExtensionContextInvalidated as isInvalidated} from '../infrastructure/browser/runtime-context.ts'
 import {mountTranscriptButton} from './page/transcript-button.ts'
 import {mountPlaylistButton} from './page/playlist-button.ts'
+import {createPlaylistTranscriptHandler} from './playlist-transcript.ts'
 
 declare global {
   interface Window {
@@ -28,6 +29,7 @@ export default function initial() {
   let pageButton: ReturnType<typeof mountTranscriptButton> | undefined
   let playlistButton: ReturnType<typeof mountPlaylistButton> | undefined
   const source = createYouTubeSource()
+  const playlistTranscripts = createPlaylistTranscriptHandler()
   const readVideoId = () => getVideoId(location.href)
   const session = createVideoSession(readVideoId, source.inspect)
   const transcripts = createTranscriptSession(readVideoId, async (videoId, trackId, signal) => {
@@ -39,7 +41,7 @@ export default function initial() {
   const whileActive = (action: () => void) => {
     if (disposed) return
     try {
-      if (!chrome.runtime.id) { cleanup(); return }
+      if (!globalThis.chrome?.runtime?.id) { cleanup(); return }
       action()
     } catch (error) {
       if (!isInvalidated(error)) throw error
@@ -56,6 +58,7 @@ export default function initial() {
     whileActive(() => { authorized = sender.id === chrome.runtime.id })
     if (!authorized) return
     const reply: typeof sendResponse = (response) => whileActive(() => sendResponse(response))
+    if (playlistTranscripts.handle(message, reply)) return true
     if (isTranscriptCancelRequest(message)) {
       if (session.isCurrent(message.videoId)) transcripts.cancel(message.requestId)
       reply({cancelled: true})
@@ -119,6 +122,7 @@ export default function initial() {
     disposed = true
     pageButton?.dispose()
     playlistButton?.dispose()
+    playlistTranscripts.dispose()
     session.dispose()
     transcripts.clear()
     source.clear()
@@ -129,7 +133,7 @@ export default function initial() {
     window.removeEventListener('pageshow', onFinish)
     if (window.__youtubeTranscriptCleanup === cleanup) delete window.__youtubeTranscriptCleanup
     try {
-      if (chrome.runtime.id) chrome.runtime.onMessage.removeListener(onMessage)
+      if (globalThis.chrome?.runtime?.id) chrome.runtime.onMessage.removeListener(onMessage)
     } catch (error) {
       if (!isInvalidated(error)) throw error
     }

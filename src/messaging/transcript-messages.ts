@@ -37,7 +37,7 @@ export type TranscriptLoadResponse = {
   requestId: string
   videoId: string
   trackId: string | null
-  result: {status: 'ready'; transcript: Transcript} | {status: 'error'; code: VideoErrorCode}
+  result: {status: 'ready'; transcript: Transcript} | {status: 'error'; code: VideoErrorCode; httpStatus?: number | null}
 }
 
 const ERROR_CODES: readonly VideoErrorCode[] = [
@@ -71,7 +71,9 @@ export function isTranscriptLoadResponse(value: unknown): value is TranscriptLoa
     typeof value.requestId !== 'string' || !isVideoId(value.videoId) ||
     (value.trackId !== null && (typeof value.trackId !== 'string' || !value.trackId)) || !isRecord(value.result)) return false
   const result = value.result
-  if (result.status === 'error') return ERROR_CODES.some((code) => code === result.code)
+  if (result.status === 'error') return ERROR_CODES.some((code) => code === result.code) &&
+    (result.httpStatus === undefined || result.httpStatus === null ||
+      (typeof result.httpStatus === 'number' && Number.isInteger(result.httpStatus) && result.httpStatus >= 100 && result.httpStatus <= 599))
   if (result.status !== 'ready' || !isRecord(result.transcript)) return false
   const transcript = result.transcript
   const validSource = value.trackId === null

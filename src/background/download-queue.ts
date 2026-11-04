@@ -3,7 +3,7 @@ import {queueStorage} from '../infrastructure/browser/queue-storage.ts'
 import {queueDownloads} from '../infrastructure/browser/queue-downloads.ts'
 import {browserSettings} from '../infrastructure/browser/settings.ts'
 import {loadPlaylist} from '../infrastructure/youtube/playlist-source.ts'
-import {loadPlaylistTranscript} from '../infrastructure/youtube/playlist-transcript.ts'
+import {loadQueuedTranscript} from '../infrastructure/browser/playlist-transcript.ts'
 import {getPlaylistId} from '../domain/playlist.ts'
 import {isQueueRequest, type QueueResponse} from '../messaging/queue-messages.ts'
 
@@ -11,7 +11,7 @@ const ALARM = 'transcript-download-queue'
 
 export function registerDownloadQueue() {
   const queue = createDownloadQueue({load: queueStorage.load, save: queueStorage.save,
-    playlist: loadPlaylist, transcript: loadPlaylistTranscript,
+    playlist: loadPlaylist, transcript: loadQueuedTranscript,
     download: queueDownloads.start, lookup: queueDownloads.lookup, cancelDownload: queueDownloads.cancel, now: Date.now})
     .then(async (instance) => { await instance.recover(); return instance })
   // Alarms recover progress when MV3 suspends the worker between jobs.

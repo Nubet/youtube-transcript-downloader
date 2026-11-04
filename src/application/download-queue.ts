@@ -99,7 +99,7 @@ export async function createDownloadQueue(dependencies: QueueDependencies) {
         job.error = code
         if (http === 429) state.cooldownUntil = dependencies.now() + 60_000
         if (retryable && job.attempts < 2) { job.status = 'pending'; job.retryAt = dependencies.now() + 3_000 }
-        else job.status = ['unavailable', 'track-unavailable', 'empty-transcript'].includes(code) ? 'skipped' : 'failed'
+        else job.status = ['unavailable', 'track-unavailable'].includes(code) ? 'skipped' : 'failed'
       })
     }
   }
@@ -174,6 +174,7 @@ export async function createDownloadQueue(dependencies: QueueDependencies) {
   async function recover(pause = false) {
     await change(() => {
       for (const batch of state.batches) {
+        for (const job of batch.jobs) if (job.status === 'skipped' && job.error === 'empty-transcript') job.status = 'failed'
         for (const job of batch.jobs) if (job.status === 'loading') job.status = 'pending'
         if (pause && ['reading', 'queued', 'running'].includes(batch.status)) batch.status = 'paused'
       }

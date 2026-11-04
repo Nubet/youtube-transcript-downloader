@@ -1,8 +1,13 @@
 import {queueProgress, type DownloadBatch, type DownloadJob} from '../domain/download-queue.ts'
 
+const PLAYLIST_ERRORS: Record<string, string> = {
+  network: 'Couldn’t connect to YouTube.', timeout: 'YouTube took too long to respond.',
+  'page-data': 'YouTube returned an unsupported playlist response.', unavailable: 'Playlist unavailable or inaccessible.',
+}
+
 export function queueSummary(batch: DownloadBatch) {
   if (batch.status === 'reading') return 'Reading the complete playlist…'
-  if (batch.status === 'error') return 'Couldn’t read the full playlist. Retry to start the batch.'
+  if (batch.status === 'error') return `Couldn’t read the full playlist. ${PLAYLIST_ERRORS[batch.error ?? ''] ?? 'Playlist unavailable.'} Retry to start the batch.`
   const progress = queueProgress(batch)
   const label = {queued: 'Queued', running: 'Downloading', paused: 'Paused', finished: 'Finished', cancelled: 'Cancelled'}[batch.status]
   return `${label} · ${progress.processed} of ${progress.total} processed · Downloaded ${progress.completed} · Failed ${progress.failed} · Skipped ${progress.skipped}`
@@ -15,8 +20,9 @@ export function batchSettingsSummary(batch: DownloadBatch) {
 }
 
 const ERRORS: Record<string, string> = {
-  unavailable: 'Video unavailable', 'track-unavailable': 'No caption track available', 'empty-transcript': 'No captions available',
+  unavailable: 'Video unavailable', 'track-unavailable': 'No caption track available', 'empty-transcript': 'YouTube returned empty captions. Retry.',
   timeout: 'YouTube timed out', network: 'YouTube request failed', 'invalid-transcript': 'Invalid caption response',
+  connection: 'Open or refresh a YouTube tab and retry',
   'download-interrupted': 'File download interrupted', 'download-failed': 'File download rejected',
   'download-uncertain': 'Check your files before retrying: download status unknown',
 }

@@ -149,7 +149,7 @@ function sendMessage(
   })
 }
 
-function injectContentScript(tabId: number): Promise<void> {
+export function injectContentScript(tabId: number): Promise<void> {
   // Use bundled manifest paths: Extension.js rewrites TypeScript entry points.
   const files = chrome.runtime.getManifest().content_scripts
     ?.filter((script) => script.matches?.includes('https://www.youtube.com/*'))

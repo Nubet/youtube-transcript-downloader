@@ -3,7 +3,7 @@ import {selectTrack} from '../../domain/select-track.ts'
 import {VideoInspectionError} from '../../domain/video.ts'
 import {createYouTubeSource} from './video-source.ts'
 
-export async function loadPlaylistTranscript(videoId: string, settings: BatchSettings, signal: AbortSignal) {
+export async function loadPlaylistTranscript(videoId: string, settings: Pick<BatchSettings, 'browserLanguage' | 'preferredLanguage'>, signal: AbortSignal) {
   const source = createYouTubeSource()
   const inspection = await source.inspect(videoId, signal)
   const track = selectTrack(inspection.tracks, settings.browserLanguage, settings.preferredLanguage)
