@@ -162,5 +162,14 @@ export async function createDownloadQueue(dependencies: QueueDependencies) {
     }
   }
 
-  return {enqueue, command, wake, getSnapshot: () => structuredClone(state)}
+  async function recover(pause = false) {
+    await change(() => {
+      for (const batch of state.batches) {
+        for (const job of batch.jobs) if (job.status === 'loading') job.status = 'pending'
+        if (pause && ['reading', 'queued', 'running'].includes(batch.status)) batch.status = 'paused'
+      }
+    })
+  }
+
+  return {enqueue, command, wake, recover, getSnapshot: () => structuredClone(state)}
 }
