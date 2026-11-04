@@ -9,6 +9,7 @@ import type {TranscriptSource} from '../../application/transcript-source.ts'
 import type {VideoInspection} from '../../domain/video.ts'
 import type {ExportOptions} from '../../application/prepare-export.ts'
 import {PAGE_STYLES} from './styles.ts'
+import {preferredLanguages} from '../../domain/settings/preferred-languages.ts'
 
 export const BUTTON_TARGETS = [
   'ytd-watch-metadata #actions #top-level-buttons-computed',
@@ -30,24 +31,42 @@ export function mountTranscriptButton(dependencies: Dependencies) {
   host.setAttribute('data-youtube-transcript-button', '')
   const shadow = host.attachShadow({mode: 'open'})
   shadow.innerHTML = `<style>${PAGE_STYLES}</style>
-    <button id="open" type="button" aria-haspopup="dialog" aria-controls="panel" aria-expanded="false">Download transcript</button>
-    <section id="panel" popover="auto" role="dialog" aria-labelledby="heading">
-      <header><h2 id="heading">YouTube Transcript</h2><button id="close" type="button" aria-label="Close transcript">×</button></header>
-      <p id="title"></p>
-      <label>Language<select id="language" aria-label="Language"></select></label>
+    <div class="split-button" role="group" aria-label="Transcript download">
+      <button id="quick-download" type="button" aria-live="polite">Download transcript</button>
+      <button id="open" type="button" aria-label="Transcript download settings" aria-haspopup="dialog" aria-controls="panel" aria-expanded="false">⋮</button>
+    </div>
+    <section id="panel" popover="auto" role="dialog" aria-label="Transcript download settings">
+      <header><label>Language<select id="language" aria-label="Language"></select></label><button id="close" type="button" aria-label="Close transcript">×</button></header>
       <label>Format<select id="format" aria-label="Format"><option value="txt">TXT</option><option value="srt">SRT</option><option value="vtt">VTT</option></select></label>
-      <label id="timestamps-row">Timestamps<input id="timestamps" type="checkbox"></label>
+      <label id="timestamps-row">Timestamps<input id="timestamps" type="checkbox" role="switch"></label>
+      <details id="more-settings">
+        <summary>Show more settings</summary>
+        <label class="preferred-language">Preferred language<select id="preferred-language" aria-describedby="language-help"></select></label>
+        <p id="language-help">Uses English if unavailable, then another available caption track.</p>
+        <label>Include title<input id="include-title" type="checkbox" role="switch"></label>
+        <label>Include video link<input id="include-link" type="checkbox" role="switch"></label>
+        <p>Title and video link apply to TXT downloads and copies.</p>
+        <label>Show transcript button on YouTube<input id="show-page-button" type="checkbox" role="switch"></label>
+        <p>Changes are saved automatically and shared with the extension popup.</p>
+      </details>
       <p id="status" role="status" aria-live="polite"></p>
       <p id="error" role="alert" hidden></p>
       <div class="recovery"><button id="retry" type="button" hidden>Retry</button><button id="fallback" type="button" hidden>Use YouTube transcript</button></div>
       <div class="actions"><button id="download" class="primary" type="button" disabled>Download</button><button id="copy" type="button" disabled>Copy</button></div>
     </section>`
   const button = shadow.querySelector<HTMLButtonElement>('#open')!
+  const quickDownload = shadow.querySelector<HTMLButtonElement>('#quick-download')!
   const panel = shadow.querySelector<HTMLElement>('#panel')!
   const language = shadow.querySelector<HTMLSelectElement>('#language')!
   const format = shadow.querySelector<HTMLSelectElement>('#format')!
   const timestamps = shadow.querySelector<HTMLInputElement>('#timestamps')!
-  const title = shadow.querySelector<HTMLElement>('#title')!
+  const preferredLanguage = shadow.querySelector<HTMLSelectElement>('#preferred-language')!
+  const toggles = [
+    [timestamps, 'includeTimestamps'],
+    [shadow.querySelector<HTMLInputElement>('#include-title')!, 'includeTitle'],
+    [shadow.querySelector<HTMLInputElement>('#include-link')!, 'includeLink'],
+    [shadow.querySelector<HTMLInputElement>('#show-page-button')!, 'showPageButton'],
+  ] as const
   const status = shadow.querySelector<HTMLElement>('#status')!
   const errorMessage = shadow.querySelector<HTMLElement>('#error')!
   const download = shadow.querySelector<HTMLButtonElement>('#download')!
@@ -60,6 +79,8 @@ export function mountTranscriptButton(dependencies: Dependencies) {
   let stopPanel: (() => void) | null = null
   let lastInspection: VideoInspection | null = null
   let observing = false
+  let quickPending = false
+  let lastPreferredLanguage = preferences.getSnapshot().settings.preferredLanguage
 
   function exportOptions(): ExportOptions {
     const settings = preferences.getSnapshot().settings
@@ -93,17 +114,28 @@ export function mountTranscriptButton(dependencies: Dependencies) {
     const preferenceState = preferences.getSnapshot()
     const settings = preferenceState.settings
     const selection = state.status === 'ready' ? state.selection : null
-    if (state.status === 'loading') { title.textContent = ''; lastInspection = null }
+    if (state.status === 'loading') lastInspection = null
     const working = selection?.status === 'ready' && selection.exportState.status === 'working'
     const file = store.getExport(exportOptions())
+    quickDownload.disabled = quickPending || working
+    quickDownload.textContent = quickPending || working ? 'Downloading…' : 'Download transcript'
     download.disabled = copy.disabled = !file || working || preferenceState.status !== 'ready'
     format.value = settings.format
-    timestamps.checked = settings.includeTimestamps
-    format.disabled = timestamps.disabled = working || preferenceState.status === 'saving'
+    format.disabled = preferredLanguage.disabled = working || preferenceState.status !== 'ready'
+    for (const [control, key] of toggles) {
+      control.checked = settings[key]
+      control.disabled = format.disabled
+    }
+    const languages = preferredLanguages(state.status === 'ready' ? state.inspection.tracks : [], settings.preferredLanguage)
+    const languageKey = languages.map(({code}) => code).join(',')
+    if (preferredLanguage.dataset.languages !== languageKey) {
+      preferredLanguage.dataset.languages = languageKey
+      preferredLanguage.replaceChildren(new Option('Browser language', ''), ...languages.map(({code, label}) => new Option(label, code)))
+    }
+    preferredLanguage.value = settings.preferredLanguage ?? ''
     shadow.querySelector<HTMLElement>('#timestamps-row')!.hidden = settings.format !== 'txt'
     if (state.status === 'ready' && state.inspection !== lastInspection) {
       lastInspection = state.inspection
-      title.textContent = state.inspection.video.title
       language.replaceChildren(...state.inspection.tracks.map((track) => new Option(track.label, track.id)))
     }
     if (selection && selection.status !== 'none') {
@@ -140,11 +172,28 @@ export function mountTranscriptButton(dependencies: Dependencies) {
       errorMessage.hidden = false
       errorMessage.textContent = 'Preferences unavailable. Reopen the panel to retry.'
     }
+    if (quickPending) {
+      if (file && preferenceState.status === 'ready') {
+        quickPending = false
+        void store.exportTranscript('download', file)
+      } else if (state.status === 'error' || state.status === 'unsupported' || selection?.status === 'error' ||
+        (state.status === 'ready' && state.inspection.tracks.length === 0 && selection?.status === 'none') ||
+        preferenceState.status === 'read-error') {
+        quickPending = false
+        quickDownload.disabled = false
+        quickDownload.textContent = 'Download transcript'
+        showPanel()
+      }
+    }
+    if (selection?.status === 'ready' && selection.exportState.status === 'error') showPanel()
   }
 
   function close() {
     stopPanel?.()
     stopPanel = null
+    quickPending = false
+    quickDownload.disabled = false
+    quickDownload.textContent = 'Download transcript'
     button.setAttribute('aria-expanded', 'false')
     if (panel.matches(':popover-open')) panel.hidePopover()
   }
@@ -171,20 +220,44 @@ export function mountTranscriptButton(dependencies: Dependencies) {
 
   const observer = new MutationObserver(() => dependencies.run(synchronize))
   const stopPreferences = preferences.subscribe(() => dependencies.run(() => {
+    const {settings, status} = preferences.getSnapshot()
+    const languageChanged = status === 'ready' && settings.preferredLanguage !== lastPreferredLanguage
+    if (status === 'ready') lastPreferredLanguage = settings.preferredLanguage
     synchronize()
+    if (languageChanged && stopPanel) void store.reload(false)
     render(store.getSnapshot())
   }))
 
-  button.addEventListener('click', () => dependencies.run(() => {
-    if (panel.matches(':popover-open')) { close(); return }
-    const rect = button.getBoundingClientRect()
+  function showPanel() {
+    if (panel.matches(':popover-open')) return
+    const rect = quickDownload.getBoundingClientRect()
     panel.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - 340))}px`
-    panel.style.top = `${Math.max(12, Math.min(rect.bottom + 8, innerHeight - 400))}px`
+    const top = Math.max(12, Math.min(rect.bottom + 8, innerHeight - 400))
+    panel.style.top = `${top}px`
+    panel.style.maxHeight = `calc(100dvh - ${top + 12}px)`
     panel.showPopover()
     button.setAttribute('aria-expanded', 'true')
-    stopPanel = store.subscribe(() => dependencies.run(() => render(store.getSnapshot())))
-    render(store.getSnapshot())
     shadow.querySelector<HTMLButtonElement>('#close')!.focus()
+  }
+
+  function subscribe() {
+    stopPanel ??= store.subscribe(() => dependencies.run(() => render(store.getSnapshot())))
+  }
+
+  quickDownload.addEventListener('click', () => dependencies.run(() => {
+    if (quickDownload.disabled) return
+    quickPending = true
+    subscribe()
+    const state = store.getSnapshot()
+    if (state.status === 'error' || state.status === 'unsupported' ||
+      (state.status === 'ready' && state.selection.status === 'error')) void store.reload(false)
+    render(store.getSnapshot())
+  }))
+  button.addEventListener('click', () => dependencies.run(() => {
+    if (panel.matches(':popover-open')) { close(); return }
+    showPanel()
+    subscribe()
+    render(store.getSnapshot())
   }))
   panel.addEventListener('toggle', () => { if (!panel.matches(':popover-open')) close() })
   shadow.querySelector('#close')!.addEventListener('click', () => { close(); button.focus() })
@@ -193,9 +266,14 @@ export function mountTranscriptButton(dependencies: Dependencies) {
     const value = format.value
     if (value === 'txt' || value === 'srt' || value === 'vtt') void preferences.update({format: value}).catch(reportError)
   }))
-  timestamps.addEventListener('change', () => dependencies.run(() => {
-    void preferences.update({includeTimestamps: timestamps.checked}).catch(reportError)
+  preferredLanguage.addEventListener('change', () => dependencies.run(() => {
+    void preferences.update({preferredLanguage: preferredLanguage.value || null}).catch(reportError)
   }))
+  for (const [control, key] of toggles) {
+    control.addEventListener('change', () => dependencies.run(() => {
+      void preferences.update({[key]: control.checked}).catch(reportError)
+    }))
+  }
   retry.addEventListener('click', () => dependencies.run(() => void store.reload()))
   fallback.addEventListener('click', () => dependencies.run(() => void store.selectLanguage(null)))
   for (const [control, action] of [[download, 'download'], [copy, 'copy']] as const) {
