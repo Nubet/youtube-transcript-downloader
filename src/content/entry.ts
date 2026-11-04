@@ -14,6 +14,7 @@ import {createTranscriptSession} from './transcript-session.ts'
 import {loadPanelTranscript} from '../infrastructure/youtube/panel/panel-source.ts'
 import {isExtensionContextInvalidated as isInvalidated} from '../infrastructure/browser/runtime-context.ts'
 import {mountTranscriptButton} from './page/transcript-button.ts'
+import {mountPlaylistButton} from './page/playlist-button.ts'
 
 declare global {
   interface Window {
@@ -25,6 +26,7 @@ export default function initial() {
   window.__youtubeTranscriptCleanup?.()
   let disposed = false
   let pageButton: ReturnType<typeof mountTranscriptButton> | undefined
+  let playlistButton: ReturnType<typeof mountPlaylistButton> | undefined
   const source = createYouTubeSource()
   const readVideoId = () => getVideoId(location.href)
   const session = createVideoSession(readVideoId, source.inspect)
@@ -97,6 +99,7 @@ export default function initial() {
   }
   const onStart = () => {
     pageButton?.navigationStarted()
+    playlistButton?.navigationStarted()
     session.navigationStarted()
     transcripts.clear()
     source.clear()
@@ -108,12 +111,14 @@ export default function initial() {
     source.clear()
     notify('finished')
     if (!disposed) pageButton?.navigationFinished()
+    if (!disposed) playlistButton?.navigationFinished()
   }
 
   const cleanup = () => {
     if (disposed) return
     disposed = true
     pageButton?.dispose()
+    playlistButton?.dispose()
     session.dispose()
     transcripts.clear()
     source.clear()
@@ -157,6 +162,7 @@ export default function initial() {
         },
         onError: (error) => { if (isInvalidated(error)) cleanup() },
       })
+      playlistButton = mountPlaylistButton(whileActive)
     })
   }
   return cleanup

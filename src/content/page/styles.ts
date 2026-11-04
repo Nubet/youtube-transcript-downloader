@@ -13,11 +13,15 @@ button:disabled, select:disabled { opacity: .5; cursor: default; }
 #quick-download { border-radius: 20px 0 0 20px; }
 #open { position: relative; border-radius: 0 20px 20px 0; padding: 5px 12px; font-size: 22px; line-height: 1; }
 #open::before { content: ''; position: absolute; left: 0; top: 25%; height: 50%; width: 1px; background: currentColor; opacity: .25; }
+#start { border-radius: 20px 0 0 20px; }
+#menu { position: relative; border-radius: 0 20px 20px 0; padding: 5px 12px; font-size: 22px; line-height: 1; }
+#menu::before { content: ''; position: absolute; left: 0; top: 25%; height: 50%; width: 1px; background: currentColor; opacity: .25; }
 [popover] { --bg: light-dark(#f2f2f7, #000); --surface: light-dark(#fff, #1c1c1e); --text: light-dark(#000, #fff); --muted: light-dark(#636366, #98989d); --border: light-dark(#e5e5ea, #38383a); --control: light-dark(#e9e9eb, #39393d); --control-hover: light-dark(#d1d1d6, #48484a); --blue: light-dark(#065fd4, #3ea6ff); --primary: light-dark(#d70000, #ff453a); --primary-hover: light-dark(#b50000, #ff6961); --primary-text: light-dark(#fff, #000); position: fixed; inset: auto; margin: 0; width: 328px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 8px 30px #0003; }
 [popover] button { background: var(--control); }
 [popover] button:hover:not(:disabled) { background: var(--control-hover); }
 [popover] :focus-visible { outline-color: var(--blue); }
 header { display: flex; align-items: center; gap: 8px; }
+header strong { flex: 1; }
 header label { flex: 1; min-width: 0; margin-top: 0; margin-bottom: 0; }
 header button { flex: 0 0 28px; padding: 4px; font-size: 20px; }
 [popover] header button { background: transparent; color: var(--muted); }
@@ -40,5 +44,6 @@ p { margin: 10px 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; 
 [role=alert] { color: light-dark(#c62828, #ff8a80); }
 .recovery { display: flex; gap: 8px; }
 .recovery button { padding: 6px 10px; font-size: 12px; }
+progress { width: 100%; height: 8px; accent-color: var(--blue); }
 [hidden] { display: none !important; }
 `

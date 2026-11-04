@@ -10,6 +10,7 @@ import type {VideoInspection} from '../../domain/video.ts'
 import type {ExportOptions} from '../../application/prepare-export.ts'
 import {PAGE_STYLES} from './styles.ts'
 import {preferredLanguages} from '../../domain/settings/preferred-languages.ts'
+import {positionPanel} from './panel-position.ts'
 
 export const BUTTON_TARGETS = [
   'ytd-watch-metadata #actions #top-level-buttons-computed',
@@ -230,11 +231,7 @@ export function mountTranscriptButton(dependencies: Dependencies) {
 
   function showPanel() {
     if (panel.matches(':popover-open')) return
-    const rect = quickDownload.getBoundingClientRect()
-    panel.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - 340))}px`
-    const top = Math.max(12, Math.min(rect.bottom + 8, innerHeight - 400))
-    panel.style.top = `${top}px`
-    panel.style.maxHeight = `calc(100dvh - ${top + 12}px)`
+    positionPanel(panel, quickDownload)
     panel.showPopover()
     button.setAttribute('aria-expanded', 'true')
     shadow.querySelector<HTMLButtonElement>('#close')!.focus()
