@@ -100,7 +100,8 @@ function ExportFeedback({state}: {state: ExportState | null}) {
   if (state?.status === 'error') {
     return (
       <p className="error-message action-feedback" role="alert">
-        {state.action === 'copy' ? 'Couldn’t copy. Try again.' : 'Couldn’t download. Try again.'}
+        {state.error ? `Couldn’t ${state.action}: ${state.error}`
+          : state.action === 'copy' ? 'Couldn’t copy. Try again.' : 'Couldn’t download. Try again.'}
       </p>
     )
   }
