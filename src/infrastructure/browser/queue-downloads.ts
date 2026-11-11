@@ -1,16 +1,10 @@
 import type {TranscriptExport} from '../../application/prepare-export.ts'
 import type {DownloadRecord} from '../../application/download-queue.ts'
 import type {DownloadJob} from '../../domain/download-queue.ts'
+import {startDownload} from './downloads.ts'
 
 export const queueDownloads = {
-  start: (file: TranscriptExport, filename: string): Promise<number> => new Promise((resolve, reject) => {
-    const url = `data:${file.mimeType},${encodeURIComponent(file.text)}`
-    chrome.downloads.download({url, filename, saveAs: false, conflictAction: 'uniquify'}, (id) => {
-      const error = chrome.runtime.lastError
-      if (error || id === undefined) reject(new Error(error?.message ?? 'Download was rejected'))
-      else resolve(id)
-    })
-  }),
+  start: (file: TranscriptExport, filename: string): Promise<number> => startDownload(file, filename, false),
   lookup: (job: DownloadJob): Promise<DownloadRecord | null> => new Promise((resolve, reject) => {
     if (job.downloadId === null && !job.filename) { resolve(null); return }
     const filenameRegex = job.filename?.split('/').map((part) => part.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('[/\\\\]')

@@ -14,7 +14,13 @@ export const popupStore = createPopupStore({
   load: loadActiveTranscript,
   browserLanguage: navigator.language,
   getSettings: settingsStore.load,
-  download: downloadTranscript,
+  download: chrome.runtime.getURL('').startsWith('moz-extension:') ? (file) => new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({type: 'popup.download', file}, (response: {ok?: boolean; error?: string} | undefined) => {
+      const error = chrome.runtime.lastError
+      if (error || !response?.ok) reject(new Error(error?.message ?? response?.error ?? 'Download was not accepted.'))
+      else resolve()
+    })
+  }) : downloadTranscript,
   copy: copyTranscript,
   subscribeToNavigation: subscribeToVideoNavigation,
 })
