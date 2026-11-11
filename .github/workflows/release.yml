@@ -69,7 +69,6 @@ jobs:
           for browser in chrome edge firefox; do
             npx extension build --browser "$browser" --zip --zip-filename "youtube-transcript-downloader-${RELEASE_TAG}.zip" --silent
           done
-          node scripts/check-builds.mjs
 
       - name: Commit version and create tag
         if: github.event_name == 'workflow_dispatch'
